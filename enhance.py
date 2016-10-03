@@ -32,16 +32,17 @@ import collections
 parser = argparse.ArgumentParser(description='Generate a new image by applying style onto a content image.',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 add_arg = parser.add_argument
+add_arg('--model',              default='ne%ix.pkl.bz2', type=str)
 add_arg('--batch-size',         default=15, type=int)
 add_arg('--batch-resolution',   default=256, type=int)
 add_arg('--epoch-size',         default=36, type=int)
-add_arg('--epochs',             default=25, type=int)
+add_arg('--epochs',             default=10, type=int)
 add_arg('--generator-filters',  default=128, type=int)
 add_arg('--generator-blocks',   default=4, type=int)
 add_arg('--generator-residual', default=2, type=int)
 add_arg('--perceptual-layer',   default='conv2_2', type=str)
 add_arg('--perceptual-weight',  default=1e0, type=float)
-add_arg('--smoothness-weight',  default=1e6, type=float)
+add_arg('--smoothness-weight',  default=1e4, type=float)
 add_arg('--adversary-weight',   default=0.0, type=float)
 add_arg('--scales',             default=1, type=int,            help='')
 add_arg('--device',             default='gpu0', type=str,       help='Name of the CPU/GPU number to use, for Theano.')
@@ -102,9 +103,9 @@ from lasagne.layers import InputLayer, ConcatLayer, batch_norm, ElemwiseSumLayer
 print('{}  - Using the device `{}` for neural computation.{}\n'.format(ansi.CYAN, theano.config.device, ansi.ENDC))
 
 
-#----------------------------------------------------------------------------------------------------------------------
+#======================================================================================================================
 # Image Processing
-#----------------------------------------------------------------------------------------------------------------------
+#======================================================================================================================
 class DataLoader(threading.Thread):
 
     def __init__(self):
@@ -121,7 +122,7 @@ class DataLoader(threading.Thread):
     def run(self):
         files, cache = glob.glob('train/*.jpg'), {}
         while True:
-            random.shuffle(files)
+            # random.shuffle(files)
             for i, f in enumerate(files[:args.batch_size]):
                 filename = os.path.join(self.cwd, f)
                 try:
@@ -132,9 +133,9 @@ class DataLoader(threading.Thread):
                     files.remove(f)
                     continue
 
-                if random.choice([True, False]): img[:,:] = img[:,::-1]
-                h = random.randint(0, img.shape[0] - self.resolution)
-                w = random.randint(0, img.shape[1] - self.resolution)
+                # if random.choice([True, False]): img[:,:] = img[:,::-1]
+                h = (img.shape[0] - self.resolution) // 2 # random.randint(0, img.shape[0] - self.resolution)
+                w = (img.shape[1] - self.resolution) // 2 # random.randint(0, img.shape[1] - self.resolution)
                 img = img[h:h+self.resolution, w:w+self.resolution]
                 self.images[i] = np.transpose(img / 255.0 - 0.5, (2, 0, 1))
 
@@ -150,9 +151,9 @@ class DataLoader(threading.Thread):
         self.data_copied.set()
 
 
-#----------------------------------------------------------------------------------------------------------------------
+#======================================================================================================================
 # Convolution Networks
-#----------------------------------------------------------------------------------------------------------------------
+#======================================================================================================================
 
 class SubpixelShuffle(lasagne.layers.Layer):
     """Based on the code by ajbrock: https://github.com/ajbrock/Neural-Photo-Editor/
@@ -179,8 +180,8 @@ class Model(object):
     def __init__(self):
         self.network = collections.OrderedDict()
         self.network['img'] = InputLayer((None, 3, None, None))
-        low_res = PoolLayer(self.network['img'], pool_size=2**args.scales)
-        self.setup_generator(low_res)
+        self.network['seed'] = PoolLayer(self.network['img'], pool_size=2**args.scales)
+        self.setup_generator(self.network['seed'])
 
         concatenated = lasagne.layers.ConcatLayer([self.network['img'], self.network['out']], axis=0)
         self.setup_perceptual(concatenated)
@@ -188,25 +189,30 @@ class Model(object):
         self.setup_discriminator()
         self.compile()
 
+    #------------------------------------------------------------------------------------------------------------------
+    # Network Configuration
+    #------------------------------------------------------------------------------------------------------------------
+
     def last_layer(self):
         return list(self.network.values())[-1]
 
     def make_layer(self, input, units, filter_size=(3,3), stride=(1,1), pad=(1,1)):
-        conv = ConvLayer(input, units, filter_size=filter_size, stride=stride, pad=pad,
-                                       nonlinearity=lasagne.nonlinearities.elu)
-        return batch_norm(conv)
+        return ConvLayer(input, units, filter_size=filter_size, stride=stride, pad=pad,
+                                       nonlinearity=lasagne.nonlinearities.rectify)
 
-    def make_block(self, input, units):
-        l1 = self.make_layer(input, units)
-        l2 = self.make_layer(l1, units)
-        return ElemwiseSumLayer([input, l2]) if args.generator_residual > 0 else l2
+    def make_block(self, name, input, units):
+        self.network[name+'|Ac'] = ConvLayer(input, units, filter_size=(3,3), stride=(1,1), pad=1)
+        self.network[name+'|An'] = batch_norm(self.last_layer()).input_layer
+        self.network[name+'|Bc'] = ConvLayer(self.last_layer(), units, filter_size=(3,3), stride=(1,1), pad=1)
+        self.network[name+'|Bn'] = batch_norm(self.last_layer()).input_layer
+        return ElemwiseSumLayer([input, self.last_layer()]) if args.generator_residual else self.last_layer()
 
     def setup_generator(self, input):
         units = args.generator_filters
         self.network['iter.0'] = self.make_layer(input, units, filter_size=(5,5), pad=(2,2))
 
         for i in range(0, args.generator_blocks):
-            self.network['iter.%i'%(i+1)] = self.make_block(self.last_layer(), units)
+            self.network['iter.%i'%(i+1)] = self.make_block('iter.%i'%(i+1), self.last_layer(), units)
 
         for i in range(args.scales, 0, -1):
             self.network['scale%i.3'%i] = self.make_layer(self.last_layer(), units*2)
@@ -222,15 +228,15 @@ class Model(object):
         self.network['disc3'] = ConvLayer(self.network['conv3_2'], 256, filter_size=(3,3), stride=(1,1), pad=(1,1))
         hypercolumn = ConcatLayer([self.network['disc1'], self.network['disc2'], self.network['disc3']])
         self.network['disc4'] = ConvLayer(hypercolumn, 192, filter_size=(3,3), stride=(1,1))
-        self.network['disc'] = ConvLayer(self.last_layer(), 1, filter_size=(1,1), stride=(1,1), pad=(0,0),
-                                                               nonlinearity=lasagne.nonlinearities.sigmoid)
+        self.network['disc'] = batch_norm(ConvLayer(self.last_layer(), 1, filter_size=(1,1), stride=(1,1), pad=(0,0),
+                                                    nonlinearity=lasagne.nonlinearities.sigmoid))
 
     def setup_perceptual(self, input):
         """Use lasagne to create a network of convolution layers using pre-trained VGG19 weights.
         """
 
         offset = np.array([103.939, 116.779, 123.680], dtype=np.float32).reshape((1,3,1,1))
-        self.network['percept'] = lasagne.layers.NonlinearityLayer(input, lambda x: ((x+0.5)*255.0) - offset)
+        self.network['percept'] = lasagne.layers.NonlinearityLayer(input, lambda x: ((x+0.5).clip(0.0, 1.0)*255.0) - offset)
 
         self.network['mse'] = self.network['percept']
         self.network['conv1_1'] = ConvLayer(self.network['percept'], 64, 3, pad=1)
@@ -254,6 +260,10 @@ class Model(object):
         self.network['conv5_3'] = ConvLayer(self.network['conv5_2'], 512, 3, pad=1)
         self.network['conv5_4'] = ConvLayer(self.network['conv5_3'], 512, 3, pad=1)
 
+    #------------------------------------------------------------------------------------------------------------------
+    # Input / Output
+    #------------------------------------------------------------------------------------------------------------------
+
     def load_perceptual(self):
         """Open the serialized parameters from a pre-trained network, and load them into the model created.
         """
@@ -265,6 +275,40 @@ class Model(object):
         data = pickle.load(bz2.open(vgg19_file, 'rb'))
         layers = lasagne.layers.get_all_layers(self.last_layer(), treat_as_input=[self.network['percept']])
         for p, d in zip(itertools.chain(*[l.get_params() for l in layers]), data): p.set_value(d)
+
+    def list_generator_layers(self):
+        for l in lasagne.layers.get_all_layers(self.network['out'], treat_as_input=[self.network['seed']]):
+            if not l.get_params(): continue
+            name = list(self.network.keys())[list(self.network.values()).index(l)]
+            yield (name, l)
+
+    def save_generator(self):
+        def cast(p): return p.get_value().astype(np.float16)
+        params = {k: [cast(p) for p in l.get_params()] for (k, l) in self.list_generator_layers()}
+        pickle.dump(params, bz2.open(args.model % 2**args.scales, 'wb'))
+
+    def load_generator(self):
+        filename = args.model % 2**args.scales
+        if not os.path.exists(filename): return
+        params = pickle.load(bz2.open(filename, 'rb'))
+        for k, l in self.list_generator_layers():
+            (p.set_value(v) for p, v in zip(l.get_params(), params[k]))
+
+    #------------------------------------------------------------------------------------------------------------------
+    # Training & Loss Functions
+    #------------------------------------------------------------------------------------------------------------------
+
+    def loss_perceptual(self, p):
+        return lasagne.objectives.squared_error(p[:args.batch_size], p[args.batch_size:]).mean()
+
+    def loss_total_variation(self, x):
+        return T.mean(((x[:,:,:-1,:-1] - x[:,:,1:,:-1])**2 + (x[:,:,:-1,:-1] - x[:,:,:-1,1:])**2)**1.25)
+
+    def loss_adversarial(self, d):
+        return 1.0 - T.log(d[args.batch_size:]).mean()
+
+    def loss_discriminator(self, d):
+        return T.mean(T.log(d[args.batch_size:]) + T.log(1.0 - d[:args.batch_size])) 
 
     def compile(self):
         input_tensor = T.tensor4()
@@ -295,21 +339,10 @@ class Model(object):
         self.fit = theano.function([input_tensor], gen_losses, updates=collections.OrderedDict(updates))
 
         # Helper function for rendering test images deterministically, computing statistics.
-        gen_out, gen_inp, disc_out = lasagne.layers.get_output([self.network[l] for l in ['out', 'img', 'disc']],
-                                                               input_layers, deterministic=True)
-        self.predict = theano.function([input_tensor], [gen_out, gen_inp]) # disc_out.mean(axis=(1,2,3))
+        gen_out, gen_inp = lasagne.layers.get_output([self.network['out'], self.network['img']],
+                                                      input_layers, deterministic=True)
+        self.predict = theano.function([input_tensor], [gen_out, gen_inp])
 
-    def loss_perceptual(self, p):
-        return lasagne.objectives.squared_error(p[:args.batch_size], p[args.batch_size:]).mean()
-
-    def loss_total_variation(self, x):
-        return T.mean(((x[:,:,:-1,:-1] - x[:,:,1:,:-1])**2 + (x[:,:,:-1,:-1] - x[:,:,:-1,1:])**2)**1.25)
-
-    def loss_adversarial(self, d):
-        return 1.0 - T.log(d[args.batch_size:]).mean()
-
-    def loss_discriminator(self, d):
-        return T.mean(T.log(d[args.batch_size:]) + T.log(1.0 - d[:args.batch_size])) 
 
 
 class NeuralEnhancer(object):
@@ -334,6 +367,8 @@ class NeuralEnhancer(object):
             self.imsave('valid/%03i_repro.png' % i, repro[i])
 
     def train(self):
+        self.model.load_generator()
+
         images = np.zeros((args.batch_size, 3, args.batch_resolution, args.batch_resolution), dtype=np.float32)
         l_min, l_max, l_mult = 1E-7, 1E-3, 0.2
         t_cur, t_i, t_mult = 120, 150, 1
@@ -363,13 +398,16 @@ class NeuralEnhancer(object):
             repro, orign = self.model.predict(images)
             self.show_progress(repro, orign)
             total /= args.epoch_size
-            totals, labels = [sum(total)] + list(total), ['total', 'prcpt', 'smthn', 'advrs'] 
+            totals, labels = [sum(total)] + list(total), ['total', 'prcpt', 'smthn', 'advrs']
             losses = ['{}{}{}={:4.2e}'.format(ansi.WHITE_B, k, ansi.ENDC, v) for k, v in zip(labels, totals)]
             print('\rEpoch #{} in {:4.1f}s{}'.format(k+1, time.time()-start, '  '*args.epoch_size))
             print('  - losses  {}\n'.format('  '.join(losses)))
+
             # print(stats[:args.batch_size].mean(), stats[args.batch_size:].mean())
-            if k == 0: self.model.disc_lr.set_value(l_r)
-            if k == 1: self.model.adversary_weight.set_value(args.adversary_weight)
+            # if k == 0: self.model.disc_lr.set_value(l_r)
+            # if k == 1: self.model.adversary_weight.set_value(args.adversary_weight)
+
+        self.model.save_generator()
 
 
 if __name__ == "__main__":
