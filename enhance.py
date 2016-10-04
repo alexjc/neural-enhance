@@ -32,6 +32,8 @@ import collections
 parser = argparse.ArgumentParser(description='Generate a new image by applying style onto a content image.',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 add_arg = parser.add_argument
+add_arg('--load',               default=None, action='store_true')
+add_arg('--save',               default=None, action='store_true')
 add_arg('--model',              default='ne%ix.pkl.bz2', type=str)
 add_arg('--batch-size',         default=15, type=int)
 add_arg('--batch-resolution',   default=256, type=int)
@@ -42,7 +44,7 @@ add_arg('--generator-blocks',   default=4, type=int)
 add_arg('--generator-residual', default=2, type=int)
 add_arg('--perceptual-layer',   default='conv2_2', type=str)
 add_arg('--perceptual-weight',  default=1e0, type=float)
-add_arg('--smoothness-weight',  default=1e4, type=float)
+add_arg('--smoothness-weight',  default=1e6, type=float)
 add_arg('--adversary-weight',   default=0.0, type=float)
 add_arg('--scales',             default=1, type=int,            help='')
 add_arg('--device',             default='gpu0', type=str,       help='Name of the CPU/GPU number to use, for Theano.')
@@ -198,14 +200,17 @@ class Model(object):
     def last_layer(self):
         return list(self.network.values())[-1]
 
-    def make_layer(self, input, units, filter_size=(3,3), stride=(1,1), pad=(1,1)):
-        return ConvLayer(input, units, filter_size=filter_size, stride=stride, pad=pad,
-                                       nonlinearity=lasagne.nonlinearities.rectify)
+    def make_layer(self, input, units, filter_size=(3,3), stride=(1,1), pad=(1,1), nl='prelu'):
+        conv = ConvLayer(input, units, filter_size=filter_size, stride=stride, pad=pad,
+                                       nonlinearity=lasagne.nonlinearities.linear)
+        if nl == 'relu': conv.nonlinearity = lasagne.nonlinearities.rectify
+        if nl == 'prelu': conv = lasagne.layers.prelu(conv)
+        return conv
 
     def make_block(self, name, input, units):
-        self.network[name+'|Ac'] = ConvLayer(input, units, filter_size=(3,3), stride=(1,1), pad=1)
+        self.network[name+'|Ac'] = self.make_layer(input, units)
         self.network[name+'|An'] = batch_norm(self.last_layer()).input_layer
-        self.network[name+'|Bc'] = ConvLayer(self.last_layer(), units, filter_size=(3,3), stride=(1,1), pad=1)
+        self.network[name+'|Bc'] = self.make_layer(self.last_layer(), units)
         self.network[name+'|Bn'] = batch_norm(self.last_layer()).input_layer
         return ElemwiseSumLayer([input, self.last_layer()]) if args.generator_residual else self.last_layer()
 
@@ -285,6 +290,7 @@ class Model(object):
             yield (name, l)
 
     def save_generator(self):
+        if not args.save: return
         def cast(p): return p.get_value().astype(np.float16)
         params = {k: [cast(p) for p in l.get_params()] for (k, l) in self.list_generator_layers()}
         filename = args.model % 2**args.scales
@@ -292,6 +298,7 @@ class Model(object):
         print('  - Saved model as `{}` after training.'.format(filename))
 
     def load_generator(self):
+        if not args.load: return
         filename = args.model % 2**args.scales
         if not os.path.exists(filename): return
         params = pickle.load(bz2.open(filename, 'rb'))
