@@ -1,9 +1,9 @@
 Neural Enhance
 ==============
 
-`As seen on TV! <https://www.youtube.com/watch?v=LhF_56SxrGk>`_ What if you could increase the resolution of your photos using techniques from CSI laboratories? Thanks to deep learning, it's now possible to train a neural network to zoom in to your images using examples.  You'll get better results by increasing the number of neurons and specializing the training images (e.g. faces).
+`As seen on TV! <https://www.youtube.com/watch?v=LhF_56SxrGk>`_ What if you could increase the resolution of your photos using technology from CSI laboratories? Thanks to deep learning, it's now possible to train a neural network to zoom in to your images using examples.  You'll get better results by increasing the number of neurons and specializing the training images (e.g. faces).
 
-The catch? The neural network is hallucinating details based on its analysis of example images. It's not reconstructing the image exactly as it would have been if it was HD. That's only possible in Holywood — but deep learning as "Creative AI" works and its just as cool!  Here's how you can get started...
+The catch? The neural network is hallucinating details based on its training from example images. It's not reconstructing the image exactly as it would have been if it was HD. That's only possible in Holywood — but deep learning as "Creative AI" works and its just as cool!  Here's how you can get started...
 
 1. `Examples & Usage <#1-examples--usage>`_
 2. `Installation <#2-installation--setup>`_
@@ -152,7 +152,7 @@ It seems your terminal is misconfigured and not compatible with the way Python t
 Q: Is there an application for this? I want to download it!
 -----------------------------------------------------------
 
-There are many online services that provide basic style transfer with neural networks. We run `@DeepForger <https://deepforger.com/>`_, a Twitter & Facebook bot with web interface, that can take your requests too.  It takes time to make forgeries, so there's a queue... be patient!
+A: Not yet.
 
 
 ----
