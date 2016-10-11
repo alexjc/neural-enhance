@@ -33,25 +33,24 @@ parser = argparse.ArgumentParser(description='Generate a new image by applying s
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 add_arg = parser.add_argument
 add_arg('files',                nargs='*', default=[])
-add_arg('--train',              default=False, action='store_true')
-add_arg('--save',               default=None, action='store_true')
-add_arg('--model',              default='ne%ix.pkl.bz2', type=str)
-add_arg('--batch-size',         default=15, type=int)
-add_arg('--batch-resolution',   default=192, type=int)
-add_arg('--generator-filters',  default=128, type=int)
-add_arg('--generator-blocks',   default=16, type=int)
-add_arg('--generator-residual', default=2, type=int)
-add_arg('--perceptual-layer',   default='conv2_2', type=str)
-add_arg('--perceptual-weight',  default=1e0, type=float)
-add_arg('--smoothness-weight',  default=2e5, type=float)
-add_arg('--adversary-weight',   default=1e2, type=float)
-add_arg('--epoch-size',         default=36, type=int)
-add_arg('--epochs',             default=10, type=int)
-add_arg('--generator-start',    default=0, type=int)
-add_arg('--discriminator-start',default=1, type=int)
-add_arg('--adversarial-start',  default=2, type=int)
-add_arg('--scales',             default=2, type=int,            help='')
-add_arg('--device',             default='cpu', type=str,        help='Name of the CPU/GPU number to use, for Theano.')
+add_arg('--scales',             default=2, type=int,                help='How many times to perform 2x upsampling.')
+add_arg('--model',              default='ne%ix.pkl.bz2', type=str,  help='Name of the neural network to load/save.')
+add_arg('--train',              default=False, action='store_true', help='Learn new or fine-tune a neural network.')
+add_arg('--batch-size',         default=15, type=int,               help='Number of images per training batch.')
+add_arg('--batch-resolution',   default=192, type=int,              help='Resolution of images in training batch.')
+add_arg('--epochs',             default=10, type=int,               help='Total number of iterations in training.')
+add_arg('--epoch-size',         default=36, type=int,               help='Number of batches trained in an epoch.')
+add_arg('--generator-filters',  default=128, type=int,              help='Number of convolution units in network.')
+add_arg('--generator-blocks',   default=16, type=int,               help='Number of residual blocks in total.')
+add_arg('--generator-residual', default=2, type=int,                help='Number of layers in a residual block.')
+add_arg('--perceptual-layer',   default='conv2_2', type=str,        help='Which VGG layer to use as loss component.')
+add_arg('--perceptual-weight',  default=1e0, type=float,            help='Weight for VGG-layer perceptual loss.')
+add_arg('--smoothness-weight',  default=2e5, type=float,            help='Weight of the total-variation loss.')
+add_arg('--adversary-weight',   default=1e2, type=float,            help='Weight of adversarial loss compoment.')
+add_arg('--generator-start',    default=0, type=int,                help='Epoch count to start training generator.')
+add_arg('--discriminator-start',default=1, type=int,                help='Epoch count to update the discriminator.')
+add_arg('--adversarial-start',  default=2, type=int,                help='Epoch for generator to use discriminator.')
+add_arg('--device',             default='cpu', type=str,            help='Name of the CPU/GPU to use, for Theano.')
 args = parser.parse_args()
 
 
@@ -311,7 +310,6 @@ class Model(object):
             yield (name, l)
 
     def save_generator(self):
-        if not args.save: return
         def cast(p): return p.get_value().astype(np.float16)
         params = {k: [cast(p) for p in l.get_params()] for (k, l) in self.list_generator_layers()}
         filename = args.model % 2**args.scales
