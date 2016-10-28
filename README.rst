@@ -1,12 +1,11 @@
-.. image:: docs/Chinatown_example.gif
+Neural Enhance
+==============
 
 **Example #1** — China Town: `view comparison <http://5.9.70.47:4141/w/3b3c8054-9d00-11e6-9558-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/gnxcXH>`_ CC-BY-SA @cyalex.
 
-================
- Neural Enhance
-================
+.. image:: docs/Chinatown_example.gif
 
-`As seen on TV! <https://www.youtube.com/watch?v=LhF_56SxrGk>`_ What if you could increase the resolution of your photos using technology from CSI laboratories? Thanks to deep learning, it's now possible to train a neural network to zoom in to your images at 2x or even 4x.  You'll get even better results by increasing the number of neurons or using specialized training images (e.g. faces).
+`As seen on TV! <https://www.youtube.com/watch?v=LhF_56SxrGk>`_ What if you could increase the resolution of your photos using technology from CSI laboratories? Thanks to deep learning and ``#NeuralEnhance``, it's now possible to train a neural network to zoom in to your images at 2x or even 4x.  You'll get even better results by increasing the number of neurons or using specialized training images (e.g. faces).
 
 The catch? The neural network is hallucinating details based on its training from example images. It's not reconstructing your photo exactly as it would have been if it was HD. That's only possible in Holywood — but using deep learning as "Creative AI" works and its just as cool!  Here's how you can get started...
 
@@ -23,20 +22,23 @@ The catch? The neural network is hallucinating details based on its training fro
 1. Examples & Usage
 ===================
 
-The main script is called ``enhance.py``, which you can run with Python 3.4+ (see setup below).  The ``--device`` argument that lets you specify which GPU or CPU to use. For the samples above, here are the performance results:
+The main script is called ``enhance.py``, which you can run with Python 3.4+ once it's `setup <#2-installation--setup>`_ as below.  The ``--device`` argument that lets you specify which GPU or CPU to use. For the samples above, here are the performance results:
 
-* **GPU Rendering** — Assuming you have CUDA setup and enough on-board RAM to fit the image and neural network, generating 1080p output should complete in 5 seconds.
-* **CPU Rendering** — This will take roughly 20 seconds for 1080p output, however on most machines you can run 4-8 processes simultaneously given enough system RAM.
+* **GPU Rendering HQ** — Assuming you have CUDA setup and enough on-board RAM to fit the image and neural network, generating 1080p output should complete in 5 seconds, or 2s per image if multiple at the same time.
+* **CPU Rendering HQ** — This will take roughly 20 to 60 seconds for 1080p output, however on most machines you can run 4-8 processes simultaneously given enough system RAM. Runtime depends on the neural network size.
 
-The default is to use ``cpu``, if you have NVIDIA card setup with CUDA already try ``gpu0``. On the CPU, you can also set environment variable to ``OMP_NUM_THREADS=4``, but we've found the speed improvements to be minimal.
-
+The default is to use ``--device=cpu``, if you have NVIDIA card setup with CUDA already try ``--device=gpu0``. On the CPU, you can also set environment variable to ``OMP_NUM_THREADS=4``, which is most useful when running the script multiple times in parallel.
 
 1.a) Enhancing Images
 ---------------------
 
 .. code:: bash
 
+    # Run the super-resolution script for one or more images.
     python3 enhance.py example.png
+
+    # Display output image that has `_enhanced.png` suffix.
+    open example_enhanced.png
 
 
 1.b) Training Super-Resolution
@@ -56,6 +58,9 @@ The default is to use ``cpu``, if you have NVIDIA card setup with CUDA already t
               --smoothness-weight=5e4 --adversary-weight=2e2 \
               --generator-start=1 --discriminator-start=0 --adversarial-start=1
 
+**Example #2** — Bank Lobby: `view comparison <http://5.9.70.47:4141/w/38d10880-9ce6-11e6-becb-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/6a8cwm>`_ CC-BY-SA @benarent.
+
+.. image:: docs/Bank_example.gif
 
 2. Installation & Setup
 =======================
@@ -63,25 +68,7 @@ The default is to use ``cpu``, if you have NVIDIA card setup with CUDA already t
 2.a) Using Docker Image [recommended]
 -------------------------------------
 
-The easiest way to get up-and-running is to `install Docker <https://www.docker.com/>`_. Then, you should be able to downloand and run the pre-built image using the ``docker`` command line tool.  Find out more about the ``alexjc/neural-enhance`` image on its `Docker Hub <https://hub.docker.com/r/alexjc/neural-enhance/>`_ page.
-
-The easiest way to run the script from the docker image is to setup an easy access command called `enhance`. This will automatically:
-
-* Mount the ``frames`` folder from current directory into the instance for visualization.
-* Expose the ``samples`` folder from the current directory so the script can access files!
-
-This is how you can do it in your terminal console on OSX or Linux:
-
-.. code:: bash
-
-    # Setup the alias. Put this in your .bash_rc or .zshrc file so it's available at startup.
-    alias enhance="docker run -v $(pwd)/samples:/ne/samples -it alexjc/neural-enhance"
-    
-    # Now run any of the examples above using this alias, without the `.py` extension.
-    enhance --help
-
-If you want to run on your NVIDIA GPU, you can instead use the image ``alexjc/neural-enhance:gpu`` which comes with CUDA and CUDNN pre-installed in the image.  See the scripts in ``docker/*.sh`` for how to setup your host machine. (advanced)
-
+(work in progress)
 
 2.b) Manual Installation [developers]
 -------------------------------------
@@ -107,9 +94,13 @@ Afterward fetching the repository, you can run the following commands from your 
 
 After this, you should have ``pillow``, ``theano`` and ``lasagne`` installed in your virtual environment.  You'll also need to download this `pre-trained neural network <https://github.com/alexjc/neural-doodle/releases/download/v0.0/vgg19_conv.pkl.bz2>`_ (VGG19, 80Mb) and put it in the same folder as the script to run. To de-install everything, you can just delete the ``#/pyvenv/`` folder.
 
+.. image:: docs/Faces_example.png
+
 
 3. Background & Research
 ========================
+
+This code uses a combination of techniques from the following papers, as well as some minor improvements yet to be documented:
 
 1. `Perceptual Losses for Real-Time Style Transfer and Super-Resolution <http://arxiv.org/abs/1603.08155>`_
 2. `Real-Time Super-Resolution Using Efficient Sub-Pixel Convolution <https://arxiv.org/abs/1609.05158>`_
@@ -150,16 +141,6 @@ ValueError: unknown locale: UTF-8
 It seems your terminal is misconfigured and not compatible with the way Python treats locales. You may need to change this in your ``.bash_rc`` or other startup script. Alternatively, this command will fix it once for this shell instance.
 
 **FIX:** ``export LC_ALL=en_US.UTF-8``
-
-
-5. Frequent Questions
-=====================
-
-Q: Is there an application for this? I want to download it!
------------------------------------------------------------
-
-A: Not yet.
-
 
 ----
 
