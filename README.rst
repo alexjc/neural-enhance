@@ -19,6 +19,9 @@ The catch? The neural network is hallucinating details based on its training fro
 
 |Python Version| |License Type| |Project Stars|
 
+.. image:: docs/EnhanceCSI_example.png
+    :target: http://5.9.70.47:4141/w/8581db92-9d61-11e6-990b-c86000be451f/view
+
 1. Examples & Usage
 ===================
 
@@ -104,6 +107,7 @@ After this, you should have ``pillow``, ``theano`` and ``lasagne`` installed in 
 
 .. image:: docs/Faces_example.png
 
+**Example #3** — Specialized super-resolution for faces, trained on HD examples of celebrity faces only.  The quality is significantly higher when narrowing the domain from "photos" in general.
 
 3. Background & Research
 ========================
@@ -114,6 +118,12 @@ This code uses a combination of techniques from the following papers, as well as
 2. `Real-Time Super-Resolution Using Efficient Sub-Pixel Convolution <https://arxiv.org/abs/1609.05158>`_
 3. `Deeply-Recursive Convolutional Network for Image Super-Resolution <https://arxiv.org/abs/1511.04491>`_
 4. `Photo-Realistic Super-Resolution Using a Generative Adversarial Network <https://arxiv.org/abs/1609.04802>`_
+
+Special thanks for their help in various ways:
+
+* Eder Santana — Support and encouragement, feedback and ideas on `sub-pixel deconvolution <https://github.com/Tetrachrome/subpixel>`_.
+* Andrew Brock — This sub-pixel layer code is based on `his project repository <https://github.com/ajbrock/Neural-Photo-Editor>`_.
+* Casper Kaae Sønderby — For suggesting a more stable alternative to sigmoid + log.
 
 
 4. Troubleshooting Problems
@@ -152,7 +162,7 @@ It seems your terminal is misconfigured and not compatible with the way Python t
 
 .. image:: docs/Chinatown_example.gif
 
-**Example #3** — China Town: `view comparison <http://5.9.70.47:4141/w/3b3c8054-9d00-11e6-9558-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/gnxcXH>`_ CC-BY-SA @cyalex.
+**Example #4** — China Town: `view comparison <http://5.9.70.47:4141/w/3b3c8054-9d00-11e6-9558-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/gnxcXH>`_ CC-BY-SA @cyalex.
 
 ----
 
