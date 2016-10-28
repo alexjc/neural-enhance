@@ -19,8 +19,6 @@ The catch? The neural network is hallucinating details based on its training fro
 
 |Python Version| |License Type| |Project Stars|
 
-----
-
 1. Examples & Usage
 ===================
 
@@ -36,29 +34,37 @@ The default is to use ``--device=cpu``, if you have NVIDIA card setup with CUDA 
 
 .. code:: bash
 
-    # Run the super-resolution script for one or more images.
+    # Run the super-resolution script for one image.
     python3 enhance.py example.png
 
-    # Display output image that has `_enhanced.png` suffix.
-    open example_enhanced.png
+    # Also process multiple files with a single run.
+    python3 enhance.py file1.jpg file2.jpg
+
+    # Display output images that were given `_ne4x.png` suffix.
+    open *_ne4x.png
 
 
 1.b) Training Super-Resolution
 ------------------------------
 
+Pre-trained models are provided in the GitHub releases.  Training your own is a delicate process that may require you to pick parameters based on your image dataset.
+
 .. code:: bash
 
-    rm -f ne4x.pkl.bz2
+    # Remove the model file as don't want to reload the data to fine-tune it.
+    rm -f ne4x*.pkl.bz2
 
-    python3.4 enhance.py --train --epochs=25 \
-              --scales=2 --perceptual-layer=conv2_2 \
-              --generator-block=16 --generator-filters=128 \
-              --smoothness-weight=1e7 --adversary-weight=0.0
+    # Pre-train the model using perceptual loss from paper [1] below.
+    python3.4 enhance.py --train --scales=2 --epochs=50 \
+        --perceptual-layer=conv2_2 --smoothness-weight=1e7 --adversary-weight=0.0 \
+        --generator-blocks=4 --generator-filters=64
+    
+    # Train the model using an adversarial setup based on [4] below.
+    python3.4 enhance.py --train --scales=2 --epochs=250 \
+             --perceptual-layer=conv5_2 --smoothness-weight=2e4 --adversary-weight=1e3 \
+             --generator-start=5 --discriminator-start=0 --adversarial-start=5 \
+             --discriminator-size=64
 
-    python3.4 enhance.py --train --epochs=250 \
-              --scales=2 --perceptual-layer=conv5_2 \
-              --smoothness-weight=5e4 --adversary-weight=2e2 \
-              --generator-start=1 --discriminator-start=0 --adversarial-start=1
 
 .. image:: docs/BankLobby_example.gif
 

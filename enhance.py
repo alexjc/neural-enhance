@@ -504,7 +504,7 @@ if __name__ == "__main__":
     for filename in args.files:
         print(filename)
         out = enhancer.process(scipy.ndimage.imread(filename, mode='RGB'))
-        out.save(os.path.splitext(filename)[0]+'_ne%ix-%s.png'%(2**args.scales, args.model))
+        out.save(os.path.splitext(filename)[0]+'_ne%ix.png'%(2**args.scales))
 
     if args.files:
         print(ansi.ENDC)
