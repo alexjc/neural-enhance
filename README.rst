@@ -60,7 +60,7 @@ The default is to use ``--device=cpu``, if you have NVIDIA card setup with CUDA 
 
 **Example #2** — Bank Lobby: `view comparison <http://5.9.70.47:4141/w/38d10880-9ce6-11e6-becb-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/6a8cwm>`_ CC-BY-SA @benarent.
 
-.. image:: docs/Bank_example.gif
+.. image:: docs/BankLobby_example.gif
 
 2. Installation & Setup
 =======================
@@ -141,6 +141,11 @@ ValueError: unknown locale: UTF-8
 It seems your terminal is misconfigured and not compatible with the way Python treats locales. You may need to change this in your ``.bash_rc`` or other startup script. Alternatively, this command will fix it once for this shell instance.
 
 **FIX:** ``export LC_ALL=en_US.UTF-8``
+
+
+.. image:: docs/OldStation_example.gif
+
+**Example #3** — Old Station: `view comparison <http://5.9.70.47:4141/w/0f5177f4-9ce6-11e6-992c-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/oYhbBv>`_ CC-BY-SA @siv-athens.
 
 ----
 
