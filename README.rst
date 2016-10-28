@@ -1,9 +1,14 @@
-Neural Enhance
-==============
+.. image:: docs/Chinatown_example.gif
 
-`As seen on TV! <https://www.youtube.com/watch?v=LhF_56SxrGk>`_ What if you could increase the resolution of your photos using technology from CSI laboratories? Thanks to deep learning, it's now possible to train a neural network to zoom in to your images using examples.  You'll get better results by increasing the number of neurons and specializing the training images (e.g. faces).
+**Example #1** — China Town: `view comparison <http://5.9.70.47:4141/w/3b3c8054-9d00-11e6-9558-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/gnxcXH>`_ CC-BY-SA @cyalex.
 
-The catch? The neural network is hallucinating details based on its training from example images. It's not reconstructing the image exactly as it would have been if it was HD. That's only possible in Holywood — but deep learning as "Creative AI" works and its just as cool!  Here's how you can get started...
+================
+ Neural Enhance
+================
+
+`As seen on TV! <https://www.youtube.com/watch?v=LhF_56SxrGk>`_ What if you could increase the resolution of your photos using technology from CSI laboratories? Thanks to deep learning, it's now possible to train a neural network to zoom in to your images at 2x or even 4x.  You'll get even better results by increasing the number of neurons or using specialized training images (e.g. faces).
+
+The catch? The neural network is hallucinating details based on its training from example images. It's not reconstructing your photo exactly as it would have been if it was HD. That's only possible in Holywood — but using deep learning as "Creative AI" works and its just as cool!  Here's how you can get started...
 
 1. `Examples & Usage <#1-examples--usage>`_
 2. `Installation <#2-installation--setup>`_
@@ -31,7 +36,8 @@ The default is to use ``cpu``, if you have NVIDIA card setup with CUDA already t
 
 .. code:: bash
 
-    python3 enhance.py
+    python3 enhance.py example.png
+
 
 1.b) Training Super-Resolution
 ------------------------------
