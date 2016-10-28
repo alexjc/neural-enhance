@@ -1,11 +1,13 @@
 Neural Enhance
 ==============
 
-**Example #1** — China Town: `view comparison <http://5.9.70.47:4141/w/3b3c8054-9d00-11e6-9558-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/gnxcXH>`_ CC-BY-SA @cyalex.
+.. image:: docs/OldStation_example.gif
 
-.. image:: docs/Chinatown_example.gif
+**Example #1** — Old Station: `view comparison <http://5.9.70.47:4141/w/0f5177f4-9ce6-11e6-992c-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/oYhbBv>`_ CC-BY-SA @siv-athens.
 
-`As seen on TV! <https://www.youtube.com/watch?v=LhF_56SxrGk>`_ What if you could increase the resolution of your photos using technology from CSI laboratories? Thanks to deep learning and ``#NeuralEnhance``, it's now possible to train a neural network to zoom in to your images at 2x or even 4x.  You'll get even better results by increasing the number of neurons or using specialized training images (e.g. faces).
+----
+
+`As seen on TV! <https://www.youtube.com/watch?v=LhF_56SxrGk>`_ What if you could increase the resolution of your photos using technology from CSI laboratories? Thanks to deep learning and ``#NeuralEnhance``, it's now possible to train a neural network to zoom in to your images at 2x or even 4x.  You'll get even better results by increasing the number of neurons or training with a dataset similar to your low resolution image.
 
 The catch? The neural network is hallucinating details based on its training from example images. It's not reconstructing your photo exactly as it would have been if it was HD. That's only possible in Holywood — but using deep learning as "Creative AI" works and its just as cool!  Here's how you can get started...
 
@@ -58,9 +60,9 @@ The default is to use ``--device=cpu``, if you have NVIDIA card setup with CUDA 
               --smoothness-weight=5e4 --adversary-weight=2e2 \
               --generator-start=1 --discriminator-start=0 --adversarial-start=1
 
-**Example #2** — Bank Lobby: `view comparison <http://5.9.70.47:4141/w/38d10880-9ce6-11e6-becb-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/6a8cwm>`_ CC-BY-SA @benarent.
-
 .. image:: docs/BankLobby_example.gif
+
+**Example #2** — Bank Lobby: `view comparison <http://5.9.70.47:4141/w/38d10880-9ce6-11e6-becb-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/6a8cwm>`_ CC-BY-SA @benarent.
 
 2. Installation & Setup
 =======================
@@ -100,7 +102,7 @@ After this, you should have ``pillow``, ``theano`` and ``lasagne`` installed in 
 3. Background & Research
 ========================
 
-This code uses a combination of techniques from the following papers, as well as some minor improvements yet to be documented:
+This code uses a combination of techniques from the following papers, as well as some minor improvements yet to be documented (watch this repository for updates):
 
 1. `Perceptual Losses for Real-Time Style Transfer and Super-Resolution <http://arxiv.org/abs/1603.08155>`_
 2. `Real-Time Super-Resolution Using Efficient Sub-Pixel Convolution <https://arxiv.org/abs/1609.05158>`_
@@ -142,10 +144,9 @@ It seems your terminal is misconfigured and not compatible with the way Python t
 
 **FIX:** ``export LC_ALL=en_US.UTF-8``
 
+.. image:: docs/Chinatown_example.gif
 
-.. image:: docs/OldStation_example.gif
-
-**Example #3** — Old Station: `view comparison <http://5.9.70.47:4141/w/0f5177f4-9ce6-11e6-992c-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/oYhbBv>`_ CC-BY-SA @siv-athens.
+**Example #3** — China Town: `view comparison <http://5.9.70.47:4141/w/3b3c8054-9d00-11e6-9558-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/gnxcXH>`_ CC-BY-SA @cyalex.
 
 ----
 
