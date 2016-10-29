@@ -38,6 +38,7 @@ add_arg('files',                nargs='*', default=[])
 add_arg('--scales',             default=2, type=int,                help='How many times to perform 2x upsampling.')
 add_arg('--model',              default='medium', type=str,         help='Name of the neural network to load/save.')
 add_arg('--train',              default=False, action='store_true', help='Learn new or fine-tune a neural network.')
+add_arg('--images-glob',        default='dataset/*/*.jpg',type=str, help='File glob for training images.')
 add_arg('--batch-resolution',   default=192, type=int,              help='Resolution of images in training batch.')
 add_arg('--batch-size',         default=15, type=int,               help='Number of images per training batch.')
 add_arg('--buffer-size',        default=1500, type=int,             help='Total image fragments kept in cache.')
@@ -138,7 +139,10 @@ class DataLoader(threading.Thread):
         self.start()
 
     def run(self):
-        files = glob.glob('dataset/*/*.jpg')
+        files = glob.glob(args.images_glob)
+        if len(files) == 0:
+            error("No file found in {}, cannot continue".format(args.images_glob))
+        print('{}{} images found in training set.{}'.format(ansi.BLUE_B, len(files), ansi.BLUE))
         while True:
             random.shuffle(files)
 
