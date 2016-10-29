@@ -434,6 +434,7 @@ class NeuralEnhancer(object):
         image.save(fn)
 
     def show_progress(self, orign, scald, repro):
+        os.makedirs('valid', exist_ok=True)
         for i in range(args.batch_size):
             self.imsave('valid/%03i_origin.png' % i, orign[i])
             self.imsave('valid/%03i_pixels.png' % i, scald[i])
