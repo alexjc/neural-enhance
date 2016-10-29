@@ -58,13 +58,13 @@ Pre-trained models are provided in the GitHub releases.  Training your own is a 
     rm -f ne4x*.pkl.bz2
 
     # Pre-train the model using perceptual loss from paper [1] below.
-    python3.4 enhance.py --train --scales=2 --epochs=50 \
+    python3.4 enhance.py --train "data/*.jpg" --scales=2 --epochs=50 \
         --perceptual-layer=conv2_2 --smoothness-weight=1e7 --adversary-weight=0.0 \
         --generator-blocks=4 --generator-filters=64
     
     # Train the model using an adversarial setup based on [4] below.
-    python3.4 enhance.py --train --scales=2 --epochs=250 \
-             --perceptual-layer=conv5_2 --smoothness-weight=2e4 --adversary-weight=1e3 \
+    python3.4 enhance.py --train "data/*.jpg" --scales=2 --epochs=250 \
+             --perceptual-layer=conv5_2 --smoothness-weight=2e4 --adversary-weight=2e5 \
              --generator-start=5 --discriminator-start=0 --adversarial-start=5 \
              --discriminator-size=64
 
@@ -119,11 +119,11 @@ This code uses a combination of techniques from the following papers, as well as
 3. `Deeply-Recursive Convolutional Network for Image Super-Resolution <https://arxiv.org/abs/1511.04491>`_
 4. `Photo-Realistic Super-Resolution Using a Generative Adversarial Network <https://arxiv.org/abs/1609.04802>`_
 
-Special thanks for their help in various ways:
+Special thanks for their help and support in various ways:
 
-* Eder Santana — Support and encouragement, feedback and ideas on `sub-pixel deconvolution <https://github.com/Tetrachrome/subpixel>`_.
-* Andrew Brock — This sub-pixel layer code is based on `his project repository <https://github.com/ajbrock/Neural-Photo-Editor>`_.
-* Casper Kaae Sønderby — For suggesting a more stable alternative to sigmoid + log.
+* Eder Santana — Discussions, encouragement, and his ideas on `sub-pixel deconvolution <https://github.com/Tetrachrome/subpixel>`_.
+* Andrew Brock — This sub-pixel layer code is based on `his project repository <https://github.com/ajbrock/Neural-Photo-Editor>`_ using Lasagne.
+* Casper Kaae Sønderby — For suggesting a more stable alternative to sigmoid + log as GAN loss functions.
 
 
 4. Troubleshooting Problems
@@ -160,9 +160,9 @@ It seems your terminal is misconfigured and not compatible with the way Python t
 
 **FIX:** ``export LC_ALL=en_US.UTF-8``
 
-.. image:: docs/Chinatown_example.gif
+.. image:: docs/StreetView_example.gif
 
-**Example #4** — China Town: `view comparison <http://5.9.70.47:4141/w/3b3c8054-9d00-11e6-9558-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/gnxcXH>`_ CC-BY-SA @cyalex.
+**Example #4** — Street View: `view comparison <http://5.9.70.47:4141/w/3b3c8054-9d00-11e6-9558-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/gnxcXH>`_ CC-BY-SA @cyalex.
 
 ----
 
