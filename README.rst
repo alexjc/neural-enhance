@@ -9,7 +9,7 @@ Neural Enhance
 
 `As seen on TV! <https://www.youtube.com/watch?v=LhF_56SxrGk>`_ What if you could increase the resolution of your photos using technology from CSI laboratories? Thanks to deep learning and ``#NeuralEnhance``, it's now possible to train a neural network to zoom in to your images at 2x or even 4x.  You'll get even better results by increasing the number of neurons or training with a dataset similar to your low resolution image.
 
-The catch? The neural network is hallucinating details based on its training from example images. It's not reconstructing your photo exactly as it would have been if it was HD. That's only possible in Holywood — but using deep learning as "Creative AI" works and its just as cool!  Here's how you can get started...
+The catch? The neural network is hallucinating details based on its training from example images. It's not reconstructing your photo exactly as it would have been if it was HD. That's only possible in Hollywood — but using deep learning as "Creative AI" works and it is just as cool!  Here's how you can get started...
 
 1. `Examples & Usage <#1-examples--usage>`_
 2. `Installation <#2-installation--setup>`_
@@ -148,7 +148,7 @@ Special thanks for their help and support in various ways:
 Can't install or Unable to find pgen, not compiling formal grammar.
 -------------------------------------------------------------------
 
-There's a Python extension compiler called Cython, and it's missing or inproperly installed. Try getting it directly from the system package manager rather than PIP.
+There's a Python extension compiler called Cython, and it's missing or improperly installed. Try getting it directly from the system package manager rather than PIP.
 
 **FIX:** ``sudo apt-get install cython3``
 
