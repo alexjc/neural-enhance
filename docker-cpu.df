@@ -6,6 +6,8 @@ RUN apt-get -qq update           &&  \
         "build-essential"            \
         "git"                        \
         "wget"                       \
+        "libopenblas-dev"            \
+        "liblapack-dev"              \
         "pkg-config"              && \
     rm -rf /var/lib/apt/lists/*
 
@@ -28,5 +30,5 @@ RUN wget -q "https://github.com/alexjc/neural-enhance/releases/download/v0.1/ne4
 RUN wget -q "https://github.com/alexjc/neural-enhance/releases/download/v0.1/ne4x-medium-0.1.pkl.bz2"
 RUN wget -q "https://github.com/alexjc/neural-enhance/releases/download/v0.1/ne4x-large-0.1.pkl.bz2"
 
-# Set an entrypoint to the main doodle.py script
+# Set an entrypoint to the main enhance.py script
 ENTRYPOINT ["/opt/conda/bin/python3.5", "enhance.py", "--device=cpu"]

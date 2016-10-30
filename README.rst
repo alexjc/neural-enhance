@@ -79,7 +79,20 @@ Pre-trained models are provided in the GitHub releases.  Training your own is a 
 2.a) Using Docker Image [recommended]
 -------------------------------------
 
-(work in progress)
+The easiest way to get up-and-running is to `install Docker <https://www.docker.com/>`_. Then, you should be able to download and run the pre-built image using the ``docker`` command line tool.  Find out more about the ``alexjc/neural-enhance`` image on its `Docker Hub <https://hub.docker.com/r/alexjc/neural-enhance/>`_ page.
+
+We recommend you setup an alias called ``enhance`` to automatically expose your ``images`` folder from the current directory so the script can access files and store results where you can access them.  This is how you can do it in your terminal console on OSX or Linux:
+
+.. code:: bash
+
+    # Setup the alias. Put this in your .bash_rc or .zshrc file so it's available at startup.
+    alias enhance="docker run -v $(pwd)/images:/ne/images -it alexjc/neural-enhance"
+    
+    # Now run any of the examples above using this alias, without the `.py` extension.
+    enhance images/example.jpg
+
+If you want to run on your NVIDIA GPU, you can instead use the image ``alexjc/neural-enhance:gpu`` which comes with CUDA and CUDNN pre-installed in the image.  Then run it within `nvidia-docker <https://github.com/NVIDIA/nvidia-docker>`_ and it should use your physical hardware!
+
 
 2.b) Manual Installation [developers]
 -------------------------------------
