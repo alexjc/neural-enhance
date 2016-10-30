@@ -516,6 +516,12 @@ if __name__ == "__main__":
     else:
         for filename in args.files:
             print(filename)
-            out = enhancer.process(scipy.ndimage.imread(filename, mode='RGB'))
+            img = scipy.ndimage.imread(filename, mode='RGB')
+            if img.shape[0] * img.shape[1] > 256 ** 2 and args.scales >= 2:
+                error('This file is (probably) too large to process in one shot and was ignored.',
+                      '  - Until tiled rendering is added, edit this code at your own peril!')
+                continue
+
+            out = enhancer.process(img)
             out.save(os.path.splitext(filename)[0]+'_ne%ix.png'%(2**args.scales))
         print(ansi.ENDC)
