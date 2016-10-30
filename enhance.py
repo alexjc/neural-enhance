@@ -35,11 +35,11 @@ parser = argparse.ArgumentParser(description='Generate a new image by applying s
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 add_arg = parser.add_argument
 add_arg('files',                nargs='*', default=[])
-add_arg('--scales',             default=2, type=int,                help='How many times to perform 2x upsampling.')
-add_arg('--model',              default='medium', type=str,         help='Name of the neural network to load/save.')
+add_arg('--upscale',            default=2, type=int,                help='Number of times to perform 2x upsampling.')
+add_arg('--downscale',          default=0, type=int,                help='Times to down-sample input upfront by 2x.')
 add_arg('--model',              default='small', type=str,          help='Name of the neural network to load/save.')
 add_arg('--train',              default=False, type=str,            help='File pattern to load for training.')
-add_arg('--batch-resolution',   default=192, type=int,              help='Resolution of images in training batch.')
+add_arg('--batch-resolution',   default=256, type=int,           help='Resolution of images in training batch.')
 add_arg('--batch-size',         default=15, type=int,               help='Number of images per training batch.')
 add_arg('--buffer-size',        default=1500, type=int,             help='Total image fragments kept in cache.')
 add_arg('--buffer-similar',     default=5, type=int,                help='Fragments cached for each image loaded.')
@@ -212,8 +212,9 @@ class Model(object):
 
     def __init__(self):
         self.network = collections.OrderedDict()
+        args.scales = args.upscale - args.downscale
         if args.train:
-            self.network['img'] = InputLayer((None, 3, None, None))
+            self.network['img'] = InputLayer((None, 3, args.batch_resolution, args.batch_resolution))
             self.network['seed'] = PoolLayer(self.network['img'], pool_size=2**args.scales, mode='average_exc_pad')
         else:
             self.network['img'] = InputLayer((None, 3, None, None))
@@ -223,7 +224,8 @@ class Model(object):
         self.setup_generator(self.last_layer(), config)
 
         if args.train:
-            concatenated = lasagne.layers.ConcatLayer([self.network['img'], self.network['out']], axis=0)
+            inputs_and_outputs = [self.network['img'], self.network['out']]
+            concatenated = ConcatLayer(inputs_and_outputs, axis=0) #, cropping=(None, None, 'center', 'center'))
             self.setup_perceptual(concatenated)
             self.load_perceptual()
             self.setup_discriminator()
@@ -238,7 +240,7 @@ class Model(object):
     def last_layer(self):
         return list(self.network.values())[-1]
 
-    def make_layer(self, name, input, units, filter_size=(3,3), stride=(1,1), pad=(1,1), alpha=0.25):
+    def make_layer(self, name, input, units, filter_size=(3,3), stride=(1,1), pad=(0,0), alpha=0.25):
         conv = ConvLayer(input, units, filter_size=filter_size, stride=stride, pad=pad, nonlinearity=None)
         prelu = lasagne.layers.ParametricRectifierLayer(conv, alpha=lasagne.init.Constant(alpha))
         self.network[name+'x'] = conv
@@ -254,8 +256,8 @@ class Model(object):
         for k, v in config.items(): setattr(args, k, v)
         units_iter = extend(args.generator_filters)
         units = next(units_iter)
-        self.make_layer('iter.0-A', input, units, filter_size=(5,5), pad=(2,2))
-        self.make_layer('iter.0-B', self.last_layer(), units, filter_size=(5,5), pad=(2,2))
+        self.make_layer('iter.0-A', input, units, filter_size=(5,5))
+        self.make_layer('iter.0-B', self.last_layer(), units, filter_size=(5,5))
         self.network['iter.0'] = self.last_layer()
 
         for i in range(0, args.generator_blocks):
@@ -267,7 +269,7 @@ class Model(object):
             self.network['scale%i.2'%i] = SubpixelReshuffleLayer(self.last_layer(), u, 2)
             self.make_layer('scale%i.1'%i, self.last_layer(), u)
 
-        self.network['out'] = ConvLayer(self.last_layer(), 3, filter_size=(5,5), stride=(1,1), pad=(2,2),
+        self.network['out'] = ConvLayer(self.last_layer(), 3, filter_size=(7,7), stride=(1,1),
                                                               nonlinearity=lasagne.nonlinearities.tanh)
 
     def setup_perceptual(self, input):
@@ -307,7 +309,7 @@ class Model(object):
         self.make_layer('disc3', batch_norm(self.network['conv3_2']), 3*c, filter_size=(3,3), stride=(1,1), pad=(1,1))
         hypercolumn = ConcatLayer([self.network['disc1.2>'], self.network['disc2>'], self.network['disc3>']])
         self.make_layer('disc4', hypercolumn, 4*c, filter_size=(1,1), stride=(1,1), pad=(0,0))
-        self.make_layer('disc5', self.last_layer(), 3*c, filter_size=(3,3), stride=(2,2))
+        self.make_layer('disc5', self.last_layer(), 3*c, filter_size=(3,3), stride=(2,2), pad=(1,1))
         self.make_layer('disc6', self.last_layer(), 2*c, filter_size=(1,1), stride=(1,1), pad=(0,0))
         self.network['disc'] = batch_norm(ConvLayer(self.last_layer(), 1, filter_size=(1,1),
                                                     nonlinearity=lasagne.nonlinearities.linear))
