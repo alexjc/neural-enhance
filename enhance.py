@@ -36,7 +36,6 @@ parser = argparse.ArgumentParser(description='Generate a new image by applying s
 add_arg = parser.add_argument
 add_arg('files',                nargs='*', default=[])
 add_arg('--scales',             default=2, type=int,                help='How many times to perform 2x upsampling.')
-add_arg('--model',              default='medium', type=str,         help='Name of the neural network to load/save.')
 add_arg('--model',              default='small', type=str,          help='Name of the neural network to load/save.')
 add_arg('--train',              default=False, type=str,            help='File pattern to load for training.')
 add_arg('--batch-resolution',   default=192, type=int,              help='Resolution of images in training batch.')
