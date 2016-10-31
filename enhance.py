@@ -16,6 +16,7 @@
 
 __version__ = '0.1'
 
+import io
 import os
 import sys
 import bz2
@@ -38,6 +39,9 @@ add_arg('files',                nargs='*', default=[])
 add_arg('--scales',             default=2, type=int,                help='How many times to perform 2x upsampling.')
 add_arg('--model',              default='small', type=str,          help='Name of the neural network to load/save.')
 add_arg('--train',              default=False, type=str,            help='File pattern to load for training.')
+add_arg('--train-blur',         default=None, type=float,           help='Sigma value for gaussian blur preprocess.')
+add_arg('--train-noise',        default=None, type=float,           help='Sigma of normal distribution in preproc.')
+add_arg('--train-jpeg',         default=None, type=int,             help='JPEG compression level in preprocessing.')
 add_arg('--epochs',             default=10, type=int,               help='Total number of iterations in training.')
 add_arg('--epoch-size',         default=72, type=int,               help='Number of batches trained in an epoch.')
 add_arg('--save-every',         default=10, type=int,               help='Save generator after every training epoch.')
@@ -100,11 +104,10 @@ os.environ.setdefault('THEANO_FLAGS', 'floatX=float32,device={},force_device=Tru
 
 # Scientific & Imaging Libraries
 import numpy as np
-import scipy.optimize, scipy.ndimage, scipy.misc
+import scipy.ndimage, scipy.misc, PIL.Image
 
 # Numeric Computing (GPU)
-import theano
-import theano.tensor as T
+import theano, theano.tensor as T
 T.nnet.softminus = lambda x: x - T.nnet.softplus(x)
 
 # Support ansi colors in Windows too.
@@ -147,35 +150,47 @@ class DataLoader(threading.Thread):
     def run(self):
         while True:
             random.shuffle(self.files)
-
             for f in self.files:
-                filename = os.path.join(self.cwd, f)
-                try:
-                    img = scipy.ndimage.imread(filename, mode='RGB')
-                except Exception as e:
-                    warn('Could not load `{}` as image.'.format(filename),
-                         '  - Try fixing or removing the file before next run.')
-                    files.remove(f)
-                    continue
-                
-                for _ in range(args.buffer_similar):
-                    copy = img[:,::-1] if random.choice([True, False]) else img
-                    h = random.randint(0, copy.shape[0] - self.orig_shape)
-                    w = random.randint(0, copy.shape[1] - self.orig_shape)
-                    copy = copy[h:h+self.orig_shape, w:w+self.orig_shape]
+                self.add_to_buffer(f)
 
-                    while len(self.available) == 0:
-                        self.data_copied.wait()
-                        self.data_copied.clear()
+    def add_to_buffer(self, f):
+        filename = os.path.join(self.cwd, f)
+        try:
+            img = scipy.ndimage.imread(filename, mode='RGB').astype(np.float32)
+            if img.shape[0] < args.batch_shape or img.shape[1] < args.batch_shape:
+                raise ValueError('Image is too small for training with size {}'.format(img.shape))
+        except Exception as e:
+            warn('Could not load `{}` as image.'.format(filename),
+                 '  - Try fixing or removing the file before next run.')
+            self.files.remove(f)
+            return
 
-                    i = self.available.pop()
-                    self.orig_buffer[i] = np.transpose(copy / 255.0 - 0.5, (2, 0, 1))
-                    seed = scipy.misc.imresize(copy, size=(self.seed_shape, self.seed_shape), interp='bilinear')
-                    self.seed_buffer[i] = np.transpose(seed / 255.0 - 0.5, (2, 0, 1))
-                    self.ready.add(i)
+        img = scipy.ndimage.gaussian_blur(img, sigma=args.train_blur) if args.train_blur else img
+        img += scipy.random.normal(scale=args.train_noise) if args.train_noise else 0.0
+        if args.train_jpeg:
+            buffer = io.BytesIO()
+            scipy.misc.toimage(img, cmin=0, cmax=255).save(buffer, format='jpeg', quality=args.train_jpeg)
+            with PIL.Image.open(buffer) as compressed:
+                img = scipy.misc.fromimage(compressed, mode='RGB')
 
-                    if len(self.ready) >= args.batch_size:
-                        self.data_ready.set()
+        for _ in range(args.buffer_similar):
+            copy = img[:,::-1] if random.choice([True, False]) else img
+            h = random.randint(0, copy.shape[0] - self.orig_shape)
+            w = random.randint(0, copy.shape[1] - self.orig_shape)
+            copy = copy[h:h+self.orig_shape, w:w+self.orig_shape]
+
+            while len(self.available) == 0:
+                self.data_copied.wait()
+                self.data_copied.clear()
+
+            i = self.available.pop()
+            self.orig_buffer[i] = np.transpose(copy / 255.0 - 0.5, (2, 0, 1))
+            seed = scipy.misc.imresize(copy, size=(self.seed_shape, self.seed_shape), interp='bilinear')
+            self.seed_buffer[i] = np.transpose(seed / 255.0 - 0.5, (2, 0, 1))
+            self.ready.add(i)
+
+            if len(self.ready) >= args.batch_size:
+                self.data_ready.set()
 
     def copy(self, origs_out, seeds_out):
         self.data_ready.wait()
