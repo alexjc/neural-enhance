@@ -96,7 +96,7 @@ print("""{}   {}Super Resolution for images and videos powered by Deep Learning!
 # Load the underlying deep learning libraries based on the device specified.  If you specify THEANO_FLAGS manually,
 # the code assumes you know what you are doing and they are not overriden!
 os.environ.setdefault('THEANO_FLAGS', 'floatX=float32,device={},force_device=True,allow_gc=True,'\
-                                      'print_active_device=False,lib.cnmem=1.0'.format(args.device))
+                                      'print_active_device=False'.format(args.device))
 
 # Scientific & Imaging Libraries
 import numpy as np
