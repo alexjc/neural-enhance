@@ -64,7 +64,7 @@ Pre-trained models are provided in the GitHub releases.  Training your own is a 
     
     # Train the model using an adversarial setup based on [4] below.
     python3.4 enhance.py --train "data/*.jpg" --model custom --scales=2 --epochs=250 \
-             --perceptual-layer=conv5_2 --smoothness-weight=2e4 --adversary-weight=2e5 \
+             --perceptual-layer=conv5_2 --smoothness-weight=2e4 --adversary-weight=1e3 \
              --generator-start=5 --discriminator-start=0 --adversarial-start=5 \
              --discriminator-size=64
 

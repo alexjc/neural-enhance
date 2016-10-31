@@ -374,7 +374,7 @@ class Model(object):
         return T.mean(((x[:,:,:-1,:-1] - x[:,:,1:,:-1])**2 + (x[:,:,:-1,:-1] - x[:,:,:-1,1:])**2)**1.25)
 
     def loss_adversarial(self, d):
-        return T.mean(1.0 - T.nnet.softplus(d[args.batch_size:]))
+        return T.mean(1.0 - T.nnet.softminus(d[args.batch_size:]))
 
     def loss_discriminator(self, d):
         return T.mean(T.nnet.softminus(d[args.batch_size:]) - T.nnet.softplus(d[:args.batch_size]))
