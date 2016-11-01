@@ -39,8 +39,8 @@ add_arg('files',                nargs='*', default=[])
 add_arg('--zoom',               default=4, type=int,                help='Resolution increase factor for inference.')
 add_arg('--model',              default='small', type=str,          help='Name of the neural network to load/save.')
 add_arg('--train',              default=False, type=str,            help='File pattern to load for training.')
-add_arg('--train-blur',         default=None, type=float,           help='Sigma value for gaussian blur preprocess.')
-add_arg('--train-noise',        default=None, type=float,           help='Sigma of normal distribution in preproc.')
+add_arg('--train-blur',         default=None, type=int,             help='Sigma value for gaussian blur preprocess.')
+add_arg('--train-noise',        default=None, type=float,           help='Radius for preprocessing gaussian blur.')
 add_arg('--train-jpeg',         default=None, type=int,             help='JPEG compression level in preprocessing.')
 add_arg('--epochs',             default=10, type=int,               help='Total number of iterations in training.')
 add_arg('--epoch-size',         default=72, type=int,               help='Number of batches trained in an epoch.')
@@ -158,8 +158,10 @@ class DataLoader(threading.Thread):
     def add_to_buffer(self, f):
         filename = os.path.join(self.cwd, f)
         try:
-            img = scipy.ndimage.imread(filename, mode='RGB').astype(np.float32)
-            if img.shape[0] < args.batch_shape or img.shape[1] < args.batch_shape:
+            orig = PIL.Image.open(filename).convert('RGB')
+            if all(s > args.batch_shape * 2 for s in orig.size): 
+                orig = orig.resize((orig.size[0]//2, orig.size[1]//2), resample=PIL.Image.LANCZOS)
+            if any(s < args.batch_shape * 2 for s in orig.size):
                 raise ValueError('Image is too small for training with size {}'.format(img.shape))
         except Exception as e:
             warn('Could not load `{}` as image.'.format(filename),
@@ -167,28 +169,35 @@ class DataLoader(threading.Thread):
             self.files.remove(f)
             return
 
-        img = scipy.ndimage.gaussian_blur(img, sigma=args.train_blur) if args.train_blur else img
-        img += scipy.random.normal(scale=args.train_noise) if args.train_noise else 0.0
+        seed = orig.filter(PIL.ImageFilter.GaussianBlur(radius=args.train_blur)) if args.train_blur else orig
+        seed = seed.resize((orig.size[0]//args.zoom, orig.size[1]//args.zoom), resample=PIL.Image.LANCZOS)
+        seed = scipy.misc.fromimage(seed).astype(np.float32)
+        seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1)) if args.train_noise else 0.0
+
+        """
         if args.train_jpeg:
             buffer = io.BytesIO()
-            scipy.misc.toimage(img, cmin=0, cmax=255).save(buffer, format='jpeg', quality=args.train_jpeg)
+            scipy.misc.toimage(seed, cmin=0, cmax=255).save(buffer, format='jpeg', quality=args.train_jpeg)
             with PIL.Image.open(buffer) as compressed:
                 img = scipy.misc.fromimage(compressed, mode='RGB')
+        """
+
+        orig = scipy.misc.fromimage(orig).astype(np.float32)
 
         for _ in range(args.buffer_similar):
-            copy = img[:,::-1] if random.choice([True, False]) else img
-            h = random.randint(0, copy.shape[0] - self.orig_shape)
-            w = random.randint(0, copy.shape[1] - self.orig_shape)
-            copy = copy[h:h+self.orig_shape, w:w+self.orig_shape]
+            h = random.randint(0, seed.shape[0] - self.seed_shape)
+            w = random.randint(0, seed.shape[1] - self.seed_shape)
+            seed_chunk = seed[h:h+self.seed_shape, w:w+self.seed_shape]
+            h, w = h * args.zoom, w * args.zoom
+            orig_chunk = orig[h:h+self.orig_shape, w:w+self.orig_shape]
 
             while len(self.available) == 0:
                 self.data_copied.wait()
                 self.data_copied.clear()
 
             i = self.available.pop()
-            self.orig_buffer[i] = np.transpose(copy / 127.5 - 1.0, (2, 0, 1))
-            seed = scipy.misc.imresize(copy, size=(self.seed_shape, self.seed_shape), interp='bilinear')
-            self.seed_buffer[i] = np.transpose(seed / 127.5 - 1.0, (2, 0, 1))
+            self.orig_buffer[i] = np.transpose(orig_chunk.astype(np.float32) / 127.5 - 1.0, (2, 0, 1))
+            self.seed_buffer[i] = np.transpose(seed_chunk.astype(np.float32) / 127.5 - 1.0, (2, 0, 1))
             self.ready.add(i)
 
             if len(self.ready) >= args.batch_size:
@@ -399,7 +408,7 @@ class Model(object):
         return T.mean(1.0 - T.nnet.softplus(d[args.batch_size:]))
 
     def loss_discriminator(self, d):
-        return T.mean(T.nnet.softplus(d[:args.batch_size]) - T.nnet.softminus(d[args.batch_size:]))
+        return T.mean(T.nnet.softminus(d[args.batch_size:]) - T.nnet.softplus(d[:args.batch_size]))
 
     def compile(self):
         # Helper function for rendering test images during training, or standalone non-training mode.
@@ -454,9 +463,7 @@ class NeuralEnhancer(object):
         print('{}'.format(ansi.ENDC))
 
     def imsave(self, fn, img):
-        img = np.transpose(img + 1.0, (1, 2, 0)).clip(0.0, 1.0)
-        image = scipy.misc.toimage(img * 127.5, cmin=0, cmax=255)
-        image.save(fn)
+        scipy.misc.toimage(np.transpose(img + 1.0, (1, 2, 0)) * 127.5, cmin=0, cmax=255).save(fn)
 
     def show_progress(self, orign, scald, repro):
         os.makedirs('valid', exist_ok=True)
@@ -503,7 +510,7 @@ class NeuralEnhancer(object):
                 stats /= args.epoch_size
                 totals, labels = [sum(total)] + list(total), ['total', 'prcpt', 'smthn', 'advrs']
                 gen_info = ['{}{}{}={:4.2e}'.format(ansi.WHITE_B, k, ansi.ENDC, v) for k, v in zip(labels, totals)]
-                print('\rEpoch #{} at {:4.1f}s, lr={:4.2e}    {}'.format(epoch+1, time.time()-start, l_r, ' '*args.epoch_size))
+                print('\rEpoch #{} at {:4.1f}s, lr={:4.2e}{}'.format(epoch+1, time.time()-start, l_r, ' '*(args.epoch_size-60)))
                 print('  - generator {}'.format(' '.join(gen_info)))
 
                 real, fake = stats[:args.batch_size], stats[args.batch_size:]
@@ -547,5 +554,5 @@ if __name__ == "__main__":
                 continue
 
             out = enhancer.process(img)
-            out.save(os.path.splitext(filename)[0]+'_ne%ix.png'%args.zoom)
+            out.save(os.path.splitext(filename)[0]+'_ne%ix.png' % args.zoom)
         print(ansi.ENDC)
