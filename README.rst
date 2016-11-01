@@ -89,7 +89,7 @@ We recommend you setup an alias called ``enhance`` to automatically expose your 
 .. code:: bash
 
     # Setup the alias. Put this in your .bash_rc or .zshrc file so it's available at startup.
-    alias enhance="docker run -v $(pwd)/images:/ne/images -it alexjc/neural-enhance"
+    alias enhance='docker run -v $(pwd)/images:/ne/images -it alexjc/neural-enhance'
     
     # Now run any of the examples above using this alias, without the `.py` extension.
     enhance images/example.jpg
