@@ -89,12 +89,12 @@ The easiest way to get up-and-running is to `install Docker <https://www.docker.
 .. code:: bash
 
     # Setup the alias. Put this in your .bash_rc or .zshrc file so it's available at startup.
-    alias enhance="function ne() { docker run -v \`dirname \$1\`:/ne/input -it alexjc/neural-enhance input/\`basename \$1\`; }; ne"
-    
+    alias enhance='function ne() { docker run -v $(PWD)/`dirname $1`:/ne/input -it alexjc/neural-enhance input/`basename $1`; }; ne'
+
     # Now run any of the examples above using this alias, without the `.py` extension.
     enhance images/example.jpg
 
-**Multiple Images** — To enhance multiple images in a row (faster) from a folder or widlcard specification, make sure to quote the argument to the alias:
+**Multiple Images** — To enhance multiple images in a row (faster) from a folder or widlcard specification, make sure to quote the argument to the alias command:
 
 .. code:: bash
     
