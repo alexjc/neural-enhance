@@ -428,7 +428,7 @@ class Model(object):
         disc_losses = [self.loss_discriminator(disc_out)]
         disc_params = list(itertools.chain(*[l.get_params() for k, l in self.network.items() if 'disc' in k]))
         print('  - {} tensors learned for discriminator.'.format(len(disc_params)))
-        grads = T.grad(sum(disc_losses, 0.0), disc_params).clip(-1.0, 1.0)
+        grads = [g.clip(-1.0, +1.0) for g in T.grad(sum(disc_losses, 0.0), disc_params)]
         disc_updates = lasagne.updates.adam(grads, disc_params, learning_rate=self.disc_lr)
 
         # Combined Theano function for updating both generator and discriminator at the same time.
