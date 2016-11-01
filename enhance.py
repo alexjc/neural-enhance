@@ -186,9 +186,9 @@ class DataLoader(threading.Thread):
                 self.data_copied.clear()
 
             i = self.available.pop()
-            self.orig_buffer[i] = np.transpose(copy / 255.0 - 0.5, (2, 0, 1))
+            self.orig_buffer[i] = np.transpose(copy / 127.5 - 1.0, (2, 0, 1))
             seed = scipy.misc.imresize(copy, size=(self.seed_shape, self.seed_shape), interp='bilinear')
-            self.seed_buffer[i] = np.transpose(seed / 255.0 - 0.5, (2, 0, 1))
+            self.seed_buffer[i] = np.transpose(seed / 127.5 - 1.0, (2, 0, 1))
             self.ready.add(i)
 
             if len(self.ready) >= args.batch_size:
@@ -298,7 +298,7 @@ class Model(object):
         """
 
         offset = np.array([103.939, 116.779, 123.680], dtype=np.float32).reshape((1,3,1,1))
-        self.network['percept'] = lasagne.layers.NonlinearityLayer(input, lambda x: ((x+0.5).clip(0.0, 1.0)*255.0) - offset)
+        self.network['percept'] = lasagne.layers.NonlinearityLayer(input, lambda x: ((x+1.0)*127.5) - offset)
 
         self.network['mse'] = self.network['percept']
         self.network['conv1_1'] = ConvLayer(self.network['percept'], 64, 3, pad=1)
@@ -399,7 +399,7 @@ class Model(object):
         return T.mean(1.0 - T.nnet.softplus(d[args.batch_size:]))
 
     def loss_discriminator(self, d):
-        return T.mean(T.nnet.softminus(d[args.batch_size:]) - T.nnet.softplus(d[:args.batch_size]))
+        return T.mean(T.nnet.softplus(d[:args.batch_size]) - T.nnet.softminus(d[args.batch_size:]))
 
     def compile(self):
         # Helper function for rendering test images during training, or standalone non-training mode.
@@ -454,8 +454,8 @@ class NeuralEnhancer(object):
         print('{}'.format(ansi.ENDC))
 
     def imsave(self, fn, img):
-        img = np.transpose(img + 0.5, (1, 2, 0)).clip(0.0, 1.0)
-        image = scipy.misc.toimage(img * 255.0, cmin=0, cmax=255)
+        img = np.transpose(img + 1.0, (1, 2, 0)).clip(0.0, 1.0)
+        image = scipy.misc.toimage(img * 127.5, cmin=0, cmax=255)
         image.save(fn)
 
     def show_progress(self, orign, scald, repro):
@@ -525,10 +525,10 @@ class NeuralEnhancer(object):
         print(ansi.ENDC)
 
     def process(self, image):
-        img = np.transpose(image / 255.0 - 0.5, (2, 0, 1))[np.newaxis].astype(np.float32)
+        img = np.transpose(image / 127.5 - 1.0, (2, 0, 1))[np.newaxis].astype(np.float32)
         *_, repro = self.model.predict(img)
-        repro = np.transpose(repro[0] + 0.5, (1, 2, 0)).clip(0.0, 1.0)
-        return scipy.misc.toimage(repro * 255.0, cmin=0, cmax=255)
+        repro = np.transpose(repro[0] + 1.0, (1, 2, 0))
+        return scipy.misc.toimage(repro * 127.5, cmin=0, cmax=255)
 
 
 if __name__ == "__main__":
