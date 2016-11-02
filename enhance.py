@@ -236,6 +236,34 @@ class SubpixelReshuffleLayer(lasagne.layers.Layer):
         return out
 
 
+class ReflectLayer(lasagne.layers.Layer):
+    """Based on more code by ajbrock: https://gist.github.com/ajbrock/a3858c26282d9731191901b397b3ce9f
+    """
+
+    def __init__(self, incoming, pad, batch_ndim=2, **kwargs):
+        super(ReflectLayer, self).__init__(incoming, **kwargs)
+        self.pad = (pad, pad)
+        self.batch_ndim = batch_ndim
+
+    def get_output_shape_for(self, input_shape):
+        output_shape = list(input_shape)
+        for k, p in enumerate(self.pad):
+            if output_shape[k + self.batch_ndim] is None: continue
+            l, r = p, p
+            output_shape[k + self.batch_ndim] += l + r
+        return tuple(output_shape)
+
+    def get_output_for(self, x, **kwargs):
+        out = T.zeros(self.get_output_shape_for(x.shape))
+        p0, p1 = self.pad
+        out = T.set_subtensor(out[:,:,:p0,p1:-p1],    x[:,:,p0:0:-1,:])
+        out = T.set_subtensor(out[:,:,-p0:,p1:-p1],   x[:,:,-2:-(2+p0):-1,:])
+        out = T.set_subtensor(out[:,:,p0:-p0,p1:-p1], x)
+        out = T.set_subtensor(out[:,:,:,:p1],         out[:,:,:,(2*p1):p1:-1])
+        out = T.set_subtensor(out[:,:,:,-p1:],        out[:,:,:,-(p1+2):-(2*p1+2):-1])
+        return out
+
+
 class Model(object):
 
     def __init__(self):
@@ -246,25 +274,13 @@ class Model(object):
         config, params = self.load_model()
         self.setup_generator(self.last_layer(), config)
 
-        # Compute batch-size to take into account there's no zero-padding of generator convolution layers.
-        s = args.batch_shape // args.zoom
-        current = lasagne.layers.helper.get_output_shape(self.network['out'], {self.network['seed']: (1, 3, s, s)})
-        args.batch_shape += int(args.batch_shape - current[2])
-
-        self.network['img'].shape = (args.batch_size, 3, args.batch_shape, args.batch_shape)
-        self.network['seed'].shape = (args.batch_size, 3, args.batch_shape // args.zoom, args.batch_shape // args.zoom)
-        # How to re-force this to compute more elegantly using Lasagne?
-        self.network['out'].input_shape = lasagne.layers.get_output_shape(self.network['out'].input_layer,
-                                                        {self.network['seed']: self.network['seed'].shape})
-
         if args.train:
-            concatenated = lasagne.layers.ConcatLayer([self.network['img'], self.network['out']],
-                                                      axis=0, cropping=(None, None, 'center', 'center'))
+            concatenated = lasagne.layers.ConcatLayer([self.network['img'], self.network['out']], axis=0)
             self.setup_perceptual(concatenated)
             self.load_perceptual()
             self.setup_discriminator()
         self.load_generator(params)
-
+        self.compile()
 
     #------------------------------------------------------------------------------------------------------------------
     # Network Configuration
@@ -274,7 +290,8 @@ class Model(object):
         return list(self.network.values())[-1]
 
     def make_layer(self, name, input, units, filter_size=(3,3), stride=(1,1), pad=(1,1), alpha=0.25):
-        conv = ConvLayer(input, units, filter_size, stride=stride, pad=self.pad_override or pad, nonlinearity=None)
+        reflected = ReflectLayer(input, pad=pad[0]) if pad[0] > 0 else input
+        conv = ConvLayer(reflected, units, filter_size, stride=stride, pad=(0,0), nonlinearity=None)
         prelu = lasagne.layers.ParametricRectifierLayer(conv, alpha=lasagne.init.Constant(alpha))
         self.network[name+'x'] = conv
         self.network[name+'>'] = prelu
@@ -286,7 +303,6 @@ class Model(object):
         return ElemwiseSumLayer([input, self.last_layer()]) if args.generator_residual else self.last_layer()
 
     def setup_generator(self, input, config):
-        self.pad_override = (0, 0)
         for k, v in config.items(): setattr(args, k, v)
         args.zoom = 2**(args.generator_upscale - args.generator_downscale)
 
@@ -309,14 +325,12 @@ class Model(object):
             self.network['upscale%i.2'%i] = SubpixelReshuffleLayer(self.last_layer(), u, 2)
             self.make_layer('upscale%i.1'%i, self.last_layer(), u)
 
-        self.network['out'] = ConvLayer(self.last_layer(), 3, filter_size=(3,3), stride=(1,1),
-                                        pad=self.pad_override or (1,1), nonlinearity=lasagne.nonlinearities.tanh)
-        self.pad_override = None
+        self.network['out'] = ConvLayer(self.last_layer(), 3, filter_size=(3,3), stride=(1,1), pad=(1,1),
+                                                              nonlinearity=lasagne.nonlinearities.tanh)
 
     def setup_perceptual(self, input):
         """Use lasagne to create a network of convolution layers using pre-trained VGG19 weights.
         """
-
         offset = np.array([103.939, 116.779, 123.680], dtype=np.float32).reshape((1,3,1,1))
         self.network['percept'] = lasagne.layers.NonlinearityLayer(input, lambda x: ((x+1.0)*127.5) - offset)
 
@@ -468,9 +482,8 @@ class NeuralEnhancer(object):
             print('{}Enhancing {} image(s) specified on the command-line.{}'\
                   .format(ansi.BLUE_B, len(args.files), ansi.BLUE))
 
-        self.model = Model()
         self.thread = DataLoader() if loader else None
-        self.model.compile()
+        self.model = Model()
 
         print('{}'.format(ansi.ENDC))
 
