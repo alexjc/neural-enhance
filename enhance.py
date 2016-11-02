@@ -45,7 +45,7 @@ add_arg('--train-jpeg',         default=None, type=int,             help='JPEG c
 add_arg('--epochs',             default=10, type=int,               help='Total number of iterations in training.')
 add_arg('--epoch-size',         default=72, type=int,               help='Number of batches trained in an epoch.')
 add_arg('--save-every',         default=10, type=int,               help='Save generator after every training epoch.')
-add_arg('--batch-shape',        default=192, type=int,              help='Resolution of images in training batch.')
+add_arg('--batch-shape',        default=256, type=int,              help='Resolution of images in training batch.')
 add_arg('--batch-size',         default=10, type=int,               help='Number of images per training batch.')
 add_arg('--buffer-size',        default=1500, type=int,             help='Total image fragments kept in cache.')
 add_arg('--buffer-similar',     default=5, type=int,                help='Fragments cached for each image loaded.')
@@ -171,16 +171,14 @@ class DataLoader(threading.Thread):
 
         seed = orig.filter(PIL.ImageFilter.GaussianBlur(radius=args.train_blur)) if args.train_blur else orig
         seed = seed.resize((orig.size[0]//args.zoom, orig.size[1]//args.zoom), resample=PIL.Image.LANCZOS)
-        seed = scipy.misc.fromimage(seed).astype(np.float32)
-        seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1)) if args.train_noise else 0.0
 
-        """
         if args.train_jpeg:
             buffer = io.BytesIO()
-            scipy.misc.toimage(seed, cmin=0, cmax=255).save(buffer, format='jpeg', quality=args.train_jpeg)
-            with PIL.Image.open(buffer) as compressed:
-                img = scipy.misc.fromimage(compressed, mode='RGB')
-        """
+            seed.save(buffer, format='jpeg', quality=args.train_jpeg+random.randrange(-15,+15))
+            seed = PIL.Image.open(buffer)
+
+        seed = scipy.misc.fromimage(seed, mode='RGB').astype(np.float32)
+        seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1)) if args.train_noise else 0.0
 
         orig = scipy.misc.fromimage(orig).astype(np.float32)
 
@@ -251,13 +249,13 @@ class Model(object):
         # Compute batch-size to take into account there's no zero-padding of generator convolution layers.
         s = args.batch_shape // args.zoom
         current = lasagne.layers.helper.get_output_shape(self.network['out'], {self.network['seed']: (1, 3, s, s)})
-        args.batch_shape = args.batch_shape * 2 - current[2]
+        args.batch_shape += int(args.batch_shape - current[2])
 
         self.network['img'].shape = (args.batch_size, 3, args.batch_shape, args.batch_shape)
         self.network['seed'].shape = (args.batch_size, 3, args.batch_shape // args.zoom, args.batch_shape // args.zoom)
         # How to re-force this to compute more elegantly using Lasagne?
         self.network['out'].input_shape = lasagne.layers.get_output_shape(self.network['out'].input_layer,
-                                                      {self.network['seed']: self.network['seed'].shape})
+                                                        {self.network['seed']: self.network['seed'].shape})
 
         if args.train:
             concatenated = lasagne.layers.ConcatLayer([self.network['img'], self.network['out']],
@@ -311,8 +309,8 @@ class Model(object):
             self.network['upscale%i.2'%i] = SubpixelReshuffleLayer(self.last_layer(), u, 2)
             self.make_layer('upscale%i.1'%i, self.last_layer(), u)
 
-        self.network['out'] = ConvLayer(self.last_layer(), 3, filter_size=(5,5), stride=(1,1), pad=(2,2),
-                                                              nonlinearity=lasagne.nonlinearities.tanh)
+        self.network['out'] = ConvLayer(self.last_layer(), 3, filter_size=(3,3), stride=(1,1),
+                                        pad=self.pad_override or (1,1), nonlinearity=lasagne.nonlinearities.tanh)
         self.pad_override = None
 
     def setup_perceptual(self, input):
@@ -495,7 +493,7 @@ class NeuralEnhancer(object):
             if t_cur % args.learning_period == 0: l_r *= args.learning_decay
 
     def train(self):
-        seed_size = int(args.batch_shape / args.zoom)
+        seed_size = args.batch_shape // args.zoom
         images = np.zeros((args.batch_size, 3, args.batch_shape, args.batch_shape), dtype=np.float32)
         seeds = np.zeros((args.batch_size, 3, seed_size, seed_size), dtype=np.float32)
         learning_rate = self.decay_learning_rate()
