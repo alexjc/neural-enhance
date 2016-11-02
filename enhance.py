@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""                          _              _                           
-  _ __   ___ _   _ _ __ __ _| |   ___ _ __ | |__   __ _ _ __   ___ ___  
- | '_ \ / _ \ | | | '__/ _` | |  / _ \ '_ \| '_ \ / _` | '_ \ / __/ _ \ 
- | | | |  __/ |_| | | | (_| | | |  __/ | | | | | | (_| | | | | (_|  __/ 
- |_| |_|\___|\__,_|_|  \__,_|_|  \___|_| |_|_| |_|\__,_|_| |_|\___\___| 
+"""                          _              _
+  _ __   ___ _   _ _ __ __ _| |   ___ _ __ | |__   __ _ _ __   ___ ___
+ | '_ \ / _ \ | | | '__/ _` | |  / _ \ '_ \| '_ \ / _` | '_ \ / __/ _ \
+ | | | |  __/ |_| | | | (_| | | |  __/ | | | | | | (_| | | | | (_|  __/
+ |_| |_|\___|\__,_|_|  \__,_|_|  \___|_| |_|_| |_|\__,_|_| |_|\___\___|
 
 """
 #
@@ -152,12 +152,18 @@ class DataLoader(threading.Thread):
                 filename = os.path.join(self.cwd, f)
                 try:
                     img = scipy.ndimage.imread(filename, mode='RGB')
+                    copy = img[:,::-1] if random.choice([True, False]) else img
+                    if copy.shape[0] < self.resolution or copy.shape[1] < self.resolution:
+                        warn('Could not load `{}`: image too small.'.format(filename),
+                             ' Try removing the file before next run.')
+                        self.files.remove(f)
+                        continue
                 except Exception as e:
                     warn('Could not load `{}` as image.'.format(filename),
                          '  - Try fixing or removing the file before next run.')
                     files.remove(f)
                     continue
-                
+
                 for _ in range(args.buffer_similar):
                     copy = img[:,::-1] if random.choice([True, False]) else img
                     h = random.randint(0, copy.shape[0] - self.orig_shape)
