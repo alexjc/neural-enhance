@@ -64,7 +64,7 @@ Pre-trained models are provided in the GitHub releases.  Training your own is a 
     
     # Train the model using an adversarial setup based on [4] below.
     python3.4 enhance.py --train "data/*.jpg" --model custom --scales=2 --epochs=250 \
-             --perceptual-layer=conv5_2 --smoothness-weight=2e4 --adversary-weight=2e5 \
+             --perceptual-layer=conv5_2 --smoothness-weight=2e4 --adversary-weight=1e3 \
              --generator-start=5 --discriminator-start=0 --adversarial-start=5 \
              --discriminator-size=64
 
@@ -84,15 +84,22 @@ Pre-trained models are provided in the GitHub releases.  Training your own is a 
 
 The easiest way to get up-and-running is to `install Docker <https://www.docker.com/>`_. Then, you should be able to download and run the pre-built image using the ``docker`` command line tool.  Find out more about the ``alexjc/neural-enhance`` image on its `Docker Hub <https://hub.docker.com/r/alexjc/neural-enhance/>`_ page.
 
-We recommend you setup an alias called ``enhance`` to automatically expose your ``images`` folder from the current directory so the script can access files and store results where you can access them.  This is how you can do it in your terminal console on OSX or Linux:
+**Single Image** — We suggest you setup an alias called ``enhance`` to automatically expose the folder containing your specified image, so the script can read it and store results where you can access them.  This is how you can do it in your terminal console on OSX or Linux:
 
 .. code:: bash
 
     # Setup the alias. Put this in your .bash_rc or .zshrc file so it's available at startup.
-    alias enhance="docker run -v $(pwd)/images:/ne/images -it alexjc/neural-enhance"
-    
+    alias enhance='function ne() { docker run -v $(PWD)/`dirname $1`:/ne/input -it alexjc/neural-enhance input/`basename $1`; }; ne'
+
     # Now run any of the examples above using this alias, without the `.py` extension.
     enhance images/example.jpg
+
+**Multiple Images** — To enhance multiple images in a row (faster) from a folder or widlcard specification, make sure to quote the argument to the alias command:
+
+.. code:: bash
+    
+    # Process multiple images, make sure to quote the argument!
+    enhance "images/*.jpg"
 
 If you want to run on your NVIDIA GPU, you can instead use the image ``alexjc/neural-enhance:gpu`` which comes with CUDA and CUDNN pre-installed in the image.  Then run it within `nvidia-docker <https://github.com/NVIDIA/nvidia-docker>`_ and it should use your physical hardware!
 
