@@ -561,9 +561,17 @@ class NeuralEnhancer(object):
         print(ansi.ENDC)
 
     def process(self, original):
+        # Snap the image to a shape that's compatible with the generator (2x, 4x)
+        s = 2 ** max(args.generator_upscale, args.generator_downscale)
+        by, bx = original.shape[0] % s, original.shape[1] % s
+        original = original[by-by//2:original.shape[0]-by//2,bx-bx//2:original.shape[1]-bx//2,:]
+
+        # Prepare paded input image as well as output buffer of zoomed size.
         s, p, z = args.rendering_tile, args.rendering_overlap, args.zoom
-        image = np.pad(original, ((p*z, p*z), (p*z, p*z), (0, 0)), mode='reflect')
+        image = np.pad(original, ((p, p), (p, p), (0, 0)), mode='reflect')
         output = np.zeros((original.shape[0] * z, original.shape[1] * z, 3), dtype=np.float32)
+
+        # Iterate through the tile coordinates and pass them through the network.
         for y, x in itertools.product(range(0, original.shape[0], s), range(0, original.shape[1], s)):
             img = np.transpose(image[y:y+p*2+s,x:x+p*2+s,:] / 127.5 - 1.0, (2, 0, 1))[np.newaxis].astype(np.float32)
             *_, repro = self.model.predict(img)
