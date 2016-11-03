@@ -37,6 +37,8 @@ parser = argparse.ArgumentParser(description='Generate a new image by applying s
 add_arg = parser.add_argument
 add_arg('files',                nargs='*', default=[])
 add_arg('--zoom',               default=4, type=int,                help='Resolution increase factor for inference.')
+add_arg('--rendering-tile',     default=128, type=int,              help='Size of tiles used for rendering images.')
+add_arg('--rendering-overlap',  default=32, type=int,               help='Number of pixels padding around each tile.')
 add_arg('--model',              default='small', type=str,          help='Name of the neural network to load/save.')
 add_arg('--train',              default=False, type=str,            help='File pattern to load for training.')
 add_arg('--train-blur',         default=None, type=int,             help='Sigma value for gaussian blur preprocess.')
@@ -45,7 +47,7 @@ add_arg('--train-jpeg',         default=None, type=int,             help='JPEG c
 add_arg('--epochs',             default=10, type=int,               help='Total number of iterations in training.')
 add_arg('--epoch-size',         default=72, type=int,               help='Number of batches trained in an epoch.')
 add_arg('--save-every',         default=10, type=int,               help='Save generator after every training epoch.')
-add_arg('--batch-shape',        default=256, type=int,              help='Resolution of images in training batch.')
+add_arg('--batch-shape',        default=192, type=int,              help='Resolution of images in training batch.')
 add_arg('--batch-size',         default=10, type=int,               help='Number of images per training batch.')
 add_arg('--buffer-size',        default=1500, type=int,             help='Total image fragments kept in cache.')
 add_arg('--buffer-similar',     default=5, type=int,                help='Fragments cached for each image loaded.')
@@ -556,13 +558,14 @@ class NeuralEnhancer(object):
         self.model.save_generator()
         print(ansi.ENDC)
 
-    def process(self, image):
-        s, z = args.batch_shape, args.zoom
-        output = np.zeros((image.shape[0] * z, image.shape[1] * z, 3), dtype=np.float32)
-        for y, x in itertools.product(range(0, image.shape[0], s), range(0, image.shape[1], s)):
-            img = np.transpose(image[y:y+s,x:x+s,:] / 127.5 - 1.0, (2, 0, 1))[np.newaxis].astype(np.float32)
+    def process(self, original):
+        s, p, z = args.rendering_tile, args.rendering_overlap, args.zoom
+        image = np.pad(original, ((p*z, p*z), (p*z, p*z), (0, 0)), mode='reflect')
+        output = np.zeros((original.shape[0] * z, original.shape[1] * z, 3), dtype=np.float32)
+        for y, x in itertools.product(range(0, original.shape[0], s), range(0, original.shape[1], s)):
+            img = np.transpose(image[y:y+p*2+s,x:x+p*2+s,:] / 127.5 - 1.0, (2, 0, 1))[np.newaxis].astype(np.float32)
             *_, repro = self.model.predict(img)
-            output[y*z:(y+s)*z,x*z:(x+s)*z,:] = np.transpose(repro[0] + 1.0, (1, 2, 0))
+            output[y*z:(y+s)*z,x*z:(x+s)*z,:] = np.transpose(repro[0] + 1.0, (1, 2, 0))[p*z:-p*z,p*z:-p*z,:]
             print('.', end='')
         return scipy.misc.toimage(output * 127.5, cmin=0, cmax=255)
 
