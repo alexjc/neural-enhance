@@ -37,14 +37,14 @@ The default is to use ``--device=cpu``, if you have NVIDIA card setup with CUDA 
 
 .. code:: bash
 
-    # Run the super-resolution script for one image.
-    python3 enhance.py example.png
+    # Run the super-resolution script for one image, factor 1:1.
+    python3 enhance.py --zoom=1 example.png
 
-    # Also process multiple files with a single run.
-    python3 enhance.py file1.jpg file2.jpg
+    # Also process multiple files with a single run, factor 2:1.
+    python3 enhance.py --zoom=2 file1.jpg file2.jpg
 
-    # Display output images that were given `_ne4x.png` suffix.
-    open *_ne4x.png
+    # Display output images that were given `_ne?x.png` suffix.
+    open *_ne?x.png
 
 
 1.b) Training Super-Resolution
@@ -89,19 +89,19 @@ The easiest way to get up-and-running is to `install Docker <https://www.docker.
 .. code:: bash
 
     # Setup the alias. Put this in your .bashrc or .zshrc file so it's available at startup.
-    alias enhance='function ne() { docker run -v $(PWD)/`dirname $1`:/ne/input -it alexjc/neural-enhance input/`basename $1`; }; ne'
+    alias enhance='function ne() { docker run --rm -v "$(pwd)/`dirname ${@:$#}`":/ne/input -it alexjc/neural-enhance ${@:1:-1} "input/`basename ${@:$#}`"; }; ne'
 
     # Now run any of the examples above using this alias, without the `.py` extension.
-    enhance images/example.jpg
+    enhance --zoom=1 --model=small images/example.jpg
 
 **Multiple Images** — To enhance multiple images in a row (faster) from a folder or widlcard specification, make sure to quote the argument to the alias command:
 
 .. code:: bash
     
     # Process multiple images, make sure to quote the argument!
-    enhance "images/*.jpg"
+    enhance --zoom=2 --model=small "images/*.jpg"
 
-If you want to run on your NVIDIA GPU, you can instead use the image ``alexjc/neural-enhance:gpu`` which comes with CUDA and CUDNN pre-installed in the image.  Then run it within `nvidia-docker <https://github.com/NVIDIA/nvidia-docker>`_ and it should use your physical hardware!
+If you want to run on your NVIDIA GPU, you can instead change the alias to use the image ``alexjc/neural-enhance:gpu`` which comes with CUDA and CUDNN pre-installed.  Then run it within `nvidia-docker <https://github.com/NVIDIA/nvidia-docker>`_ and it should use your physical hardware!
 
 
 2.b) Manual Installation [developers]
