@@ -557,10 +557,14 @@ class NeuralEnhancer(object):
         print(ansi.ENDC)
 
     def process(self, image):
-        img = np.transpose(image / 127.5 - 1.0, (2, 0, 1))[np.newaxis].astype(np.float32)
-        *_, repro = self.model.predict(img)
-        repro = np.transpose(repro[0] + 1.0, (1, 2, 0))
-        return scipy.misc.toimage(repro * 127.5, cmin=0, cmax=255)
+        s, z = args.batch_shape, args.zoom
+        output = np.zeros((image.shape[0] * z, image.shape[1] * z, 3), dtype=np.float32)
+        for y, x in itertools.product(range(0, image.shape[0], s), range(0, image.shape[1], s)):
+            img = np.transpose(image[y:y+s,x:x+s,:] / 127.5 - 1.0, (2, 0, 1))[np.newaxis].astype(np.float32)
+            *_, repro = self.model.predict(img)
+            output[y*z:(y+s)*z,x*z:(x+s)*z,:] = np.transpose(repro[0] + 1.0, (1, 2, 0))
+            print('.', end='')
+        return scipy.misc.toimage(output * 127.5, cmin=0, cmax=255)
 
 
 if __name__ == "__main__":
@@ -571,13 +575,9 @@ if __name__ == "__main__":
     else:
         enhancer = NeuralEnhancer(loader=False)
         for filename in args.files:
-            print(filename)
+            print(filename, end=' ')
             img = scipy.ndimage.imread(filename, mode='RGB')
-            if img.shape[0] * img.shape[1] > 256 ** 2 and args.scales >= 2:
-                error('This file is (probably) too large to process in one shot and was ignored.',
-                      '  - Until tiled rendering is added, edit this code at your own peril!')
-                continue
-
             out = enhancer.process(img)
             out.save(os.path.splitext(filename)[0]+'_ne%ix.png' % args.zoom)
+            print(flush=True)
         print(ansi.ENDC)
