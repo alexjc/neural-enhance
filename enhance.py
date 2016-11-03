@@ -36,7 +36,7 @@ parser = argparse.ArgumentParser(description='Generate a new image by applying s
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 add_arg = parser.add_argument
 add_arg('files',                nargs='*', default=[])
-add_arg('--zoom',               default=4, type=int,                help='Resolution increase factor for inference.')
+add_arg('--zoom',               default=1, type=int,                help='Resolution increase factor for inference.')
 add_arg('--rendering-tile',     default=128, type=int,              help='Size of tiles used for rendering images.')
 add_arg('--rendering-overlap',  default=32, type=int,               help='Number of pixels padding around each tile.')
 add_arg('--model',              default='small', type=str,          help='Name of the neural network to load/save.')
@@ -566,7 +566,7 @@ class NeuralEnhancer(object):
             img = np.transpose(image[y:y+p*2+s,x:x+p*2+s,:] / 127.5 - 1.0, (2, 0, 1))[np.newaxis].astype(np.float32)
             *_, repro = self.model.predict(img)
             output[y*z:(y+s)*z,x*z:(x+s)*z,:] = np.transpose(repro[0] + 1.0, (1, 2, 0))[p*z:-p*z,p*z:-p*z,:]
-            print('.', end='')
+            print('.', end='', flush=True)
         return scipy.misc.toimage(output * 127.5, cmin=0, cmax=255)
 
 
