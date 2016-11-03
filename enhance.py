@@ -180,7 +180,8 @@ class DataLoader(threading.Thread):
             seed = PIL.Image.open(buffer)
 
         seed = scipy.misc.fromimage(seed, mode='RGB').astype(np.float32)
-        seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1)) if args.train_noise else 0.0
+        seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1))\
+                                                            if args.train_noise else 0.0
 
         orig = scipy.misc.fromimage(orig).astype(np.float32)
 
@@ -441,7 +442,7 @@ class Model(object):
         # Helper function for rendering test images during training, or standalone inference mode.
         input_tensor, seed_tensor = T.tensor4(), T.tensor4()
         input_layers = {self.network['img']: input_tensor, self.network['seed']: seed_tensor}
-        output = lasagne.layers.get_output([self.network[k] for k in ['seed', 'out']], input_layers, deterministic=True)
+        output = lasagne.layers.get_output([self.network[k] for k in ['seed','out']], input_layers, deterministic=True)
         self.predict = theano.function([seed_tensor], output)
 
         if not args.train: return
@@ -541,7 +542,8 @@ class NeuralEnhancer(object):
                 print('  - generator {}'.format(' '.join(gen_info)))
 
                 real, fake = stats[:args.batch_size], stats[args.batch_size:]
-                print('  - discriminator', real.mean(), len(np.where(real > 0.5)[0]), fake.mean(), len(np.where(fake < -0.5)[0]))
+                print('  - discriminator', real.mean(), len(np.where(real > 0.5)[0]),
+                                           fake.mean(), len(np.where(fake < -0.5)[0]))
                 if epoch == args.adversarial_start-1:
                     print('  - generator now optimizing against discriminator.')
                     self.model.adversary_weight.set_value(args.adversary_weight)
