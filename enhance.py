@@ -14,8 +14,9 @@
 # without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 #
 
-__version__ = '0.1'
+__version__ = '0.2'
 
+import io
 import os
 import sys
 import bz2
@@ -35,19 +36,26 @@ parser = argparse.ArgumentParser(description='Generate a new image by applying s
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 add_arg = parser.add_argument
 add_arg('files',                nargs='*', default=[])
-add_arg('--scales',             default=2, type=int,                help='How many times to perform 2x upsampling.')
+add_arg('--zoom',               default=1, type=int,                help='Resolution increase factor for inference.')
+add_arg('--rendering-tile',     default=128, type=int,              help='Size of tiles used for rendering images.')
+add_arg('--rendering-overlap',  default=32, type=int,               help='Number of pixels padding around each tile.')
 add_arg('--model',              default='small', type=str,          help='Name of the neural network to load/save.')
 add_arg('--train',              default=False, type=str,            help='File pattern to load for training.')
+add_arg('--train-blur',         default=None, type=int,             help='Sigma value for gaussian blur preprocess.')
+add_arg('--train-noise',        default=None, type=float,           help='Radius for preprocessing gaussian blur.')
+add_arg('--train-jpeg',         default=None, type=int,             help='JPEG compression level in preprocessing.')
 add_arg('--epochs',             default=10, type=int,               help='Total number of iterations in training.')
 add_arg('--epoch-size',         default=72, type=int,               help='Number of batches trained in an epoch.')
 add_arg('--save-every',         default=10, type=int,               help='Save generator after every training epoch.')
 add_arg('--batch-shape',        default=192, type=int,              help='Resolution of images in training batch.')
-add_arg('--batch-size',         default=15, type=int,               help='Number of images per training batch.')
+add_arg('--batch-size',         default=10, type=int,               help='Number of images per training batch.')
 add_arg('--buffer-size',        default=1500, type=int,             help='Total image fragments kept in cache.')
 add_arg('--buffer-similar',     default=5, type=int,                help='Fragments cached for each image loaded.')
-add_arg('--learning-rate',      default=1E-4, type=float,           help='Parameter for the ADAM optimizer.')
-add_arg('--learning-period',    default=50, type=int,               help='How often to decay the learning rate.')
+add_arg('--learning-rate',      default=5E-4, type=float,           help='Parameter for the ADAM optimizer.')
+add_arg('--learning-period',    default=100, type=int,              help='How often to decay the learning rate.')
 add_arg('--learning-decay',     default=0.5, type=float,            help='How much to decay the learning rate.')
+add_arg('--generator-upscale',  default=2, type=int,                help='Steps of 2x up-sampling as post-process.')
+add_arg('--generator-downscale',default=0, type=int,                help='Steps of 2x down-sampling as preprocess.')
 add_arg('--generator-filters',  default=[64], nargs='+', type=int,  help='Number of convolution units in network.')
 add_arg('--generator-blocks',   default=4, type=int,                help='Number of residual blocks per iteration.')
 add_arg('--generator-residual', default=2, type=int,                help='Number of layers in a residual block.')
@@ -55,7 +63,7 @@ add_arg('--perceptual-layer',   default='conv2_2', type=str,        help='Which 
 add_arg('--perceptual-weight',  default=1e0, type=float,            help='Weight for VGG-layer perceptual loss.')
 add_arg('--discriminator-size', default=32, type=int,               help='Multiplier for number of filters in D.')
 add_arg('--smoothness-weight',  default=2e5, type=float,            help='Weight of the total-variation loss.')
-add_arg('--adversary-weight',   default=1e2, type=float,            help='Weight of adversarial loss compoment.')
+add_arg('--adversary-weight',   default=5e2, type=float,            help='Weight of adversarial loss compoment.')
 add_arg('--generator-start',    default=0, type=int,                help='Epoch count to start training generator.')
 add_arg('--discriminator-start',default=1, type=int,                help='Epoch count to update the discriminator.')
 add_arg('--adversarial-start',  default=2, type=int,                help='Epoch for generator to use discriminator.')
@@ -100,11 +108,10 @@ os.environ.setdefault('THEANO_FLAGS', 'floatX=float32,device={},force_device=Tru
 
 # Scientific & Imaging Libraries
 import numpy as np
-import scipy.optimize, scipy.ndimage, scipy.misc
+import scipy.ndimage, scipy.misc, PIL.Image
 
 # Numeric Computing (GPU)
-import theano
-import theano.tensor as T
+import theano, theano.tensor as T
 T.nnet.softminus = lambda x: x - T.nnet.softplus(x)
 
 # Support ansi colors in Windows too.
@@ -129,7 +136,7 @@ class DataLoader(threading.Thread):
         self.data_ready = threading.Event()
         self.data_copied = threading.Event()
 
-        self.orig_shape, self.seed_shape = args.batch_shape, int(args.batch_shape / 2**args.scales)
+        self.orig_shape, self.seed_shape = args.batch_shape, int(args.batch_shape / args.zoom)
 
         self.orig_buffer = np.zeros((args.buffer_size, 3, self.orig_shape, self.orig_shape), dtype=np.float32)
         self.seed_buffer = np.zeros((args.buffer_size, 3, self.seed_shape, self.seed_shape), dtype=np.float32)
@@ -147,35 +154,55 @@ class DataLoader(threading.Thread):
     def run(self):
         while True:
             random.shuffle(self.files)
-
             for f in self.files:
-                filename = os.path.join(self.cwd, f)
-                try:
-                    img = scipy.ndimage.imread(filename, mode='RGB')
-                except Exception as e:
-                    warn('Could not load `{}` as image.'.format(filename),
-                         '  - Try fixing or removing the file before next run.')
-                    files.remove(f)
-                    continue
-                
-                for _ in range(args.buffer_similar):
-                    copy = img[:,::-1] if random.choice([True, False]) else img
-                    h = random.randint(0, copy.shape[0] - self.orig_shape)
-                    w = random.randint(0, copy.shape[1] - self.orig_shape)
-                    copy = copy[h:h+self.orig_shape, w:w+self.orig_shape]
+                self.add_to_buffer(f)
 
-                    while len(self.available) == 0:
-                        self.data_copied.wait()
-                        self.data_copied.clear()
+    def add_to_buffer(self, f):
+        filename = os.path.join(self.cwd, f)
+        try:
+            orig = PIL.Image.open(filename).convert('RGB')
+            # if all(s > args.batch_shape * 2 for s in orig.size): 
+            #     orig = orig.resize((orig.size[0]//2, orig.size[1]//2), resample=PIL.Image.LANCZOS)
+            if any(s < args.batch_shape for s in orig.size):
+                raise ValueError('Image is too small for training with size {}'.format(orig.size))
+        except Exception as e:
+            warn('Could not load `{}` as image.'.format(filename),
+                 '  - Try fixing or removing the file before next run.')
+            self.files.remove(f)
+            return
 
-                    i = self.available.pop()
-                    self.orig_buffer[i] = np.transpose(copy / 255.0 - 0.5, (2, 0, 1))
-                    seed = scipy.misc.imresize(copy, size=(self.seed_shape, self.seed_shape), interp='bilinear')
-                    self.seed_buffer[i] = np.transpose(seed / 255.0 - 0.5, (2, 0, 1))
-                    self.ready.add(i)
+        seed = orig.filter(PIL.ImageFilter.GaussianBlur(radius=args.train_blur)) if args.train_blur else orig
+        seed = seed.resize((orig.size[0]//args.zoom, orig.size[1]//args.zoom), resample=PIL.Image.LANCZOS)
 
-                    if len(self.ready) >= args.batch_size:
-                        self.data_ready.set()
+        if args.train_jpeg:
+            buffer = io.BytesIO()
+            seed.save(buffer, format='jpeg', quality=args.train_jpeg+random.randrange(-15,+15))
+            seed = PIL.Image.open(buffer)
+
+        seed = scipy.misc.fromimage(seed, mode='RGB').astype(np.float32)
+        seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1))\
+                                                            if args.train_noise else 0.0
+
+        orig = scipy.misc.fromimage(orig).astype(np.float32)
+
+        for _ in range(args.buffer_similar):
+            h = random.randint(0, seed.shape[0] - self.seed_shape)
+            w = random.randint(0, seed.shape[1] - self.seed_shape)
+            seed_chunk = seed[h:h+self.seed_shape, w:w+self.seed_shape]
+            h, w = h * args.zoom, w * args.zoom
+            orig_chunk = orig[h:h+self.orig_shape, w:w+self.orig_shape]
+
+            while len(self.available) == 0:
+                self.data_copied.wait()
+                self.data_copied.clear()
+
+            i = self.available.pop()
+            self.orig_buffer[i] = np.transpose(orig_chunk.astype(np.float32) / 127.5 - 1.0, (2, 0, 1))
+            self.seed_buffer[i] = np.transpose(seed_chunk.astype(np.float32) / 127.5 - 1.0, (2, 0, 1))
+            self.ready.add(i)
+
+            if len(self.ready) >= args.batch_size:
+                self.data_ready.set()
 
     def copy(self, origs_out, seeds_out):
         self.data_ready.wait()
@@ -184,9 +211,7 @@ class DataLoader(threading.Thread):
         for i, j in enumerate(random.sample(self.ready, args.batch_size)):
             origs_out[i] = self.orig_buffer[j]
             seeds_out[i] = self.seed_buffer[j]
-
             self.available.add(j)
-
         self.data_copied.set()
 
 
@@ -214,6 +239,34 @@ class SubpixelReshuffleLayer(lasagne.layers.Layer):
         return out
 
 
+class ReflectLayer(lasagne.layers.Layer):
+    """Based on more code by ajbrock: https://gist.github.com/ajbrock/a3858c26282d9731191901b397b3ce9f
+    """
+
+    def __init__(self, incoming, pad, batch_ndim=2, **kwargs):
+        super(ReflectLayer, self).__init__(incoming, **kwargs)
+        self.pad = (pad, pad)
+        self.batch_ndim = batch_ndim
+
+    def get_output_shape_for(self, input_shape):
+        output_shape = list(input_shape)
+        for k, p in enumerate(self.pad):
+            if output_shape[k + self.batch_ndim] is None: continue
+            l, r = p, p
+            output_shape[k + self.batch_ndim] += l + r
+        return tuple(output_shape)
+
+    def get_output_for(self, x, **kwargs):
+        out = T.zeros(self.get_output_shape_for(x.shape))
+        p0, p1 = self.pad
+        out = T.set_subtensor(out[:,:,:p0,p1:-p1],    x[:,:,p0:0:-1,:])
+        out = T.set_subtensor(out[:,:,-p0:,p1:-p1],   x[:,:,-2:-(2+p0):-1,:])
+        out = T.set_subtensor(out[:,:,p0:-p0,p1:-p1], x)
+        out = T.set_subtensor(out[:,:,:,:p1],         out[:,:,:,(2*p1):p1:-1])
+        out = T.set_subtensor(out[:,:,:,-p1:],        out[:,:,:,-(p1+2):-(2*p1+2):-1])
+        return out
+
+
 class Model(object):
 
     def __init__(self):
@@ -230,7 +283,6 @@ class Model(object):
             self.load_perceptual()
             self.setup_discriminator()
         self.load_generator(params)
-
         self.compile()
 
     #------------------------------------------------------------------------------------------------------------------
@@ -241,7 +293,8 @@ class Model(object):
         return list(self.network.values())[-1]
 
     def make_layer(self, name, input, units, filter_size=(3,3), stride=(1,1), pad=(1,1), alpha=0.25):
-        conv = ConvLayer(input, units, filter_size=filter_size, stride=stride, pad=pad, nonlinearity=None)
+        reflected = ReflectLayer(input, pad=pad[0]) if pad[0] > 0 else input
+        conv = ConvLayer(reflected, units, filter_size, stride=stride, pad=(0,0), nonlinearity=None)
         prelu = lasagne.layers.ParametricRectifierLayer(conv, alpha=lasagne.init.Constant(alpha))
         self.network[name+'x'] = conv
         self.network[name+'>'] = prelu
@@ -254,30 +307,35 @@ class Model(object):
 
     def setup_generator(self, input, config):
         for k, v in config.items(): setattr(args, k, v)
+        args.zoom = 2**(args.generator_upscale - args.generator_downscale)
+
         units_iter = extend(args.generator_filters)
         units = next(units_iter)
         self.make_layer('iter.0-A', input, units, filter_size=(5,5), pad=(2,2))
         self.make_layer('iter.0-B', self.last_layer(), units, filter_size=(5,5), pad=(2,2))
         self.network['iter.0'] = self.last_layer()
 
+        for i in range(0, args.generator_downscale):
+            self.make_layer('downscale%i'%i, self.last_layer(), next(units_iter), filter_size=(4,4), stride=(2,2))
+
+        units = next(units_iter)
         for i in range(0, args.generator_blocks):
             self.make_block('iter.%i'%(i+1), self.last_layer(), units)
 
-        for i in range(0, args.scales):
+        for i in range(0, args.generator_upscale):
             u = next(units_iter)
-            self.make_layer('scale%i.3'%i, self.last_layer(), u*4)
-            self.network['scale%i.2'%i] = SubpixelReshuffleLayer(self.last_layer(), u, 2)
-            self.make_layer('scale%i.1'%i, self.last_layer(), u)
+            self.make_layer('upscale%i.3'%i, self.last_layer(), u*4)
+            self.network['upscale%i.2'%i] = SubpixelReshuffleLayer(self.last_layer(), u, 2)
+            self.make_layer('upscale%i.1'%i, self.last_layer(), u)
 
-        self.network['out'] = ConvLayer(self.last_layer(), 3, filter_size=(5,5), stride=(1,1), pad=(2,2),
+        self.network['out'] = ConvLayer(self.last_layer(), 3, filter_size=(3,3), stride=(1,1), pad=(1,1),
                                                               nonlinearity=lasagne.nonlinearities.tanh)
 
     def setup_perceptual(self, input):
         """Use lasagne to create a network of convolution layers using pre-trained VGG19 weights.
         """
-
         offset = np.array([103.939, 116.779, 123.680], dtype=np.float32).reshape((1,3,1,1))
-        self.network['percept'] = lasagne.layers.NonlinearityLayer(input, lambda x: ((x+0.5).clip(0.0, 1.0)*255.0) - offset)
+        self.network['percept'] = lasagne.layers.NonlinearityLayer(input, lambda x: ((x+1.0)*127.5) - offset)
 
         self.network['mse'] = self.network['percept']
         self.network['conv1_1'] = ConvLayer(self.network['percept'], 64, 3, pad=1)
@@ -340,13 +398,14 @@ class Model(object):
     def save_generator(self):
         def cast(p): return p.get_value().astype(np.float16)
         params = {k: [cast(p) for p in l.get_params()] for (k, l) in self.list_generator_layers()}
-        config = {k: getattr(args, k) for k in ['generator_blocks', 'generator_residual', 'generator_filters']}
-        filename = 'ne%ix-%s-%s.pkl.bz2' % (2**args.scales, args.model, __version__)
+        config = {k: getattr(args, k) for k in ['generator_blocks', 'generator_residual', 'generator_filters'] + \
+                                               ['generator_upscale', 'generator_downscale']}
+        filename = 'ne%ix-%s-%s.pkl.bz2' % (args.zoom, args.model, __version__)
         pickle.dump((config, params), bz2.open(filename, 'wb'))
         print('  - Saved model as `{}` after training.'.format(filename))
 
     def load_model(self):
-        filename = 'ne%ix-%s-%s.pkl.bz2' % (2**args.scales, args.model, __version__)
+        filename = 'ne%ix-%s-%s.pkl.bz2' % (args.zoom, args.model, __version__)
         if not os.path.exists(filename):
             if args.train: return {}, {}
             error("Model file with pre-trained convolution layers not found. Download it here...",
@@ -380,10 +439,10 @@ class Model(object):
         return T.mean(T.nnet.softminus(d[args.batch_size:]) - T.nnet.softplus(d[:args.batch_size]))
 
     def compile(self):
-        # Helper function for rendering test images during training, or standalone non-training mode.
+        # Helper function for rendering test images during training, or standalone inference mode.
         input_tensor, seed_tensor = T.tensor4(), T.tensor4()
         input_layers = {self.network['img']: input_tensor, self.network['seed']: seed_tensor}
-        output = lasagne.layers.get_output([self.network[k] for k in ['seed', 'out']], input_layers, deterministic=True)
+        output = lasagne.layers.get_output([self.network[k] for k in ['seed','out']], input_layers, deterministic=True)
         self.predict = theano.function([seed_tensor], output)
 
         if not args.train: return
@@ -406,7 +465,8 @@ class Model(object):
         disc_losses = [self.loss_discriminator(disc_out)]
         disc_params = list(itertools.chain(*[l.get_params() for k, l in self.network.items() if 'disc' in k]))
         print('  - {} tensors learned for discriminator.'.format(len(disc_params)))
-        disc_updates = lasagne.updates.adam(sum(disc_losses, 0.0), disc_params, learning_rate=self.disc_lr)
+        grads = [g.clip(-5.0, +5.0) for g in T.grad(sum(disc_losses, 0.0), disc_params)]
+        disc_updates = lasagne.updates.adam(grads, disc_params, learning_rate=self.disc_lr)
 
         # Combined Theano function for updating both generator and discriminator at the same time.
         updates = collections.OrderedDict(list(gen_updates.items()) + list(disc_updates.items()))
@@ -416,7 +476,7 @@ class Model(object):
 
 class NeuralEnhancer(object):
 
-    def __init__(self):
+    def __init__(self, loader):
         if args.train:
             print('{}Training {} epochs on random image sections with batch size {}.{}'\
                   .format(ansi.BLUE_B, args.epochs, args.batch_size, ansi.BLUE))
@@ -425,33 +485,31 @@ class NeuralEnhancer(object):
             print('{}Enhancing {} image(s) specified on the command-line.{}'\
                   .format(ansi.BLUE_B, len(args.files), ansi.BLUE))
 
-        self.thread = DataLoader() if args.train else None
+        self.thread = DataLoader() if loader else None
         self.model = Model()
 
         print('{}'.format(ansi.ENDC))
 
     def imsave(self, fn, img):
-        img = np.transpose(img + 0.5, (1, 2, 0)).clip(0.0, 1.0)
-        image = scipy.misc.toimage(img * 255.0, cmin=0, cmax=255)
-        image.save(fn)
+        scipy.misc.toimage(np.transpose(img + 1.0, (1, 2, 0)) * 127.5, cmin=0, cmax=255).save(fn)
 
     def show_progress(self, orign, scald, repro):
         os.makedirs('valid', exist_ok=True)
         for i in range(args.batch_size):
-            self.imsave('valid/%03i_origin.png' % i, orign[i])
-            self.imsave('valid/%03i_pixels.png' % i, scald[i])
-            self.imsave('valid/%03i_reprod.png' % i, repro[i])
+            self.imsave('valid/%s_%03i_origin.png' % (args.model, i), orign[i])
+            self.imsave('valid/%s_%03i_pixels.png' % (args.model, i), scald[i])
+            self.imsave('valid/%s_%03i_reprod.png' % (args.model, i), repro[i])
 
     def decay_learning_rate(self):
         l_r, t_cur = args.learning_rate, 0
 
         while True:
-            yield l_r if t_cur > 0 else l_r * 0.1
+            yield l_r
             t_cur += 1
             if t_cur % args.learning_period == 0: l_r *= args.learning_decay
 
     def train(self):
-        seed_size = int(args.batch_shape / 2**args.scales)
+        seed_size = args.batch_shape // args.zoom
         images = np.zeros((args.batch_size, 3, args.batch_shape, args.batch_shape), dtype=np.float32)
         seeds = np.zeros((args.batch_size, 3, seed_size, seed_size), dtype=np.float32)
         learning_rate = self.decay_learning_rate()
@@ -480,11 +538,12 @@ class NeuralEnhancer(object):
                 stats /= args.epoch_size
                 totals, labels = [sum(total)] + list(total), ['total', 'prcpt', 'smthn', 'advrs']
                 gen_info = ['{}{}{}={:4.2e}'.format(ansi.WHITE_B, k, ansi.ENDC, v) for k, v in zip(labels, totals)]
-                print('\rEpoch #{} at {:4.1f}s, lr={:4.2e}    {}'.format(epoch+1, time.time()-start, l_r, ' '*args.epoch_size))
+                print('\rEpoch #{} at {:4.1f}s, lr={:4.2e}{}'.format(epoch+1, time.time()-start, l_r, ' '*(args.epoch_size-30)))
                 print('  - generator {}'.format(' '.join(gen_info)))
 
                 real, fake = stats[:args.batch_size], stats[args.batch_size:]
-                print('  - discriminator', real.mean(), len(np.where(real > 0.5)[0]), fake.mean(), len(np.where(fake < -0.5)[0]))
+                print('  - discriminator', real.mean(), len(np.where(real > 0.5)[0]),
+                                           fake.mean(), len(np.where(fake < -0.5)[0]))
                 if epoch == args.adversarial_start-1:
                     print('  - generator now optimizing against discriminator.')
                     self.model.adversary_weight.set_value(args.adversary_weight)
@@ -497,31 +556,33 @@ class NeuralEnhancer(object):
             pass
 
         print('\n{}Trained {}x super-resolution for {} epochs.{}'\
-                .format(ansi.CYAN_B, 2**args.scales, epoch+1, ansi.CYAN))
+                .format(ansi.CYAN_B, args.zoom, epoch+1, ansi.CYAN))
         self.model.save_generator()
         print(ansi.ENDC)
 
-    def process(self, image):
-        img = np.transpose(image / 255.0 - 0.5, (2, 0, 1))[np.newaxis].astype(np.float32)
-        *_, repro = self.model.predict(img)
-        repro = np.transpose(repro[0] + 0.5, (1, 2, 0)).clip(0.0, 1.0)
-        return scipy.misc.toimage(repro * 255.0, cmin=0, cmax=255)
+    def process(self, original):
+        s, p, z = args.rendering_tile, args.rendering_overlap, args.zoom
+        image = np.pad(original, ((p*z, p*z), (p*z, p*z), (0, 0)), mode='reflect')
+        output = np.zeros((original.shape[0] * z, original.shape[1] * z, 3), dtype=np.float32)
+        for y, x in itertools.product(range(0, original.shape[0], s), range(0, original.shape[1], s)):
+            img = np.transpose(image[y:y+p*2+s,x:x+p*2+s,:] / 127.5 - 1.0, (2, 0, 1))[np.newaxis].astype(np.float32)
+            *_, repro = self.model.predict(img)
+            output[y*z:(y+s)*z,x*z:(x+s)*z,:] = np.transpose(repro[0] + 1.0, (1, 2, 0))[p*z:-p*z,p*z:-p*z,:]
+            print('.', end='', flush=True)
+        return scipy.misc.toimage(output * 127.5, cmin=0, cmax=255)
 
 
 if __name__ == "__main__":
-    enhancer = NeuralEnhancer()
-
     if args.train:
+        args.zoom = 2**(args.generator_upscale - args.generator_downscale)
+        enhancer = NeuralEnhancer(loader=True)
         enhancer.train()
     else:
+        enhancer = NeuralEnhancer(loader=False)
         for filename in args.files:
-            print(filename)
+            print(filename, end=' ')
             img = scipy.ndimage.imread(filename, mode='RGB')
-            if img.shape[0] * img.shape[1] > 256 ** 2 and args.scales >= 2:
-                error('This file is (probably) too large to process in one shot and was ignored.',
-                      '  - Until tiled rendering is added, edit this code at your own peril!')
-                continue
-
             out = enhancer.process(img)
-            out.save(os.path.splitext(filename)[0]+'_ne%ix.png'%(2**args.scales))
+            out.save(os.path.splitext(filename)[0]+'_ne%ix.png' % args.zoom)
+            print(flush=True)
         print(ansi.ENDC)
