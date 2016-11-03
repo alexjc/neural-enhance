@@ -88,7 +88,7 @@ The easiest way to get up-and-running is to `install Docker <https://www.docker.
 
 .. code:: bash
 
-    # Setup the alias. Put this in your .bash_rc or .zshrc file so it's available at startup.
+    # Setup the alias. Put this in your .bashrc or .zshrc file so it's available at startup.
     alias enhance='function ne() { docker run -v $(PWD)/`dirname $1`:/ne/input -it alexjc/neural-enhance input/`basename $1`; }; ne'
 
     # Now run any of the examples above using this alias, without the `.py` extension.
@@ -179,7 +179,7 @@ You need to install Lasagne and Theano directly from the versions specified in `
 ValueError: unknown locale: UTF-8
 ---------------------------------
 
-It seems your terminal is misconfigured and not compatible with the way Python treats locales. You may need to change this in your ``.bash_rc`` or other startup script. Alternatively, this command will fix it once for this shell instance.
+It seems your terminal is misconfigured and not compatible with the way Python treats locales. You may need to change this in your ``.bashrc`` or other startup script. Alternatively, this command will fix it once for this shell instance.
 
 **FIX:** ``export LC_ALL=en_US.UTF-8``
 
