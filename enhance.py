@@ -41,6 +41,7 @@ add_arg('--rendering-tile',     default=128, type=int,              help='Size o
 add_arg('--rendering-overlap',  default=32, type=int,               help='Number of pixels padding around each tile.')
 add_arg('--model',              default='small', type=str,          help='Name of the neural network to load/save.')
 add_arg('--train',              default=False, type=str,            help='File pattern to load for training.')
+add_arg('--train-scales',       default=0, type=int,                help='Randomly resize images this many times.')
 add_arg('--train-blur',         default=None, type=int,             help='Sigma value for gaussian blur preprocess.')
 add_arg('--train-noise',        default=None, type=float,           help='Radius for preprocessing gaussian blur.')
 add_arg('--train-jpeg',         default=None, type=int,             help='JPEG compression level in preprocessing.')
@@ -52,7 +53,7 @@ add_arg('--batch-size',         default=15, type=int,               help='Number
 add_arg('--buffer-size',        default=1500, type=int,             help='Total image fragments kept in cache.')
 add_arg('--buffer-similar',     default=5, type=int,                help='Fragments cached for each image loaded.')
 add_arg('--learning-rate',      default=1E-4, type=float,           help='Parameter for the ADAM optimizer.')
-add_arg('--learning-period',    default=50, type=int,               help='How often to decay the learning rate.')
+add_arg('--learning-period',    default=75, type=int,               help='How often to decay the learning rate.')
 add_arg('--learning-decay',     default=0.5, type=float,            help='How much to decay the learning rate.')
 add_arg('--generator-upscale',  default=2, type=int,                help='Steps of 2x up-sampling as post-process.')
 add_arg('--generator-downscale',default=0, type=int,                help='Steps of 2x down-sampling as preprocess.')
@@ -161,8 +162,9 @@ class DataLoader(threading.Thread):
         filename = os.path.join(self.cwd, f)
         try:
             orig = PIL.Image.open(filename).convert('RGB')
-            # if all(s > args.batch_shape * 2 for s in orig.size): 
-            #     orig = orig.resize((orig.size[0]//2, orig.size[1]//2), resample=PIL.Image.LANCZOS)
+            scale = 2 ** random.randint(0, args.train_scales)
+            if scale > 1 and all(s > args.batch_shape * scale for s in orig.size):
+                orig = orig.resize((orig.size[0]//scale, orig.size[1]//scale), resample=PIL.Image.LANCZOS)
             if any(s < args.batch_shape for s in orig.size):
                 raise ValueError('Image is too small for training with size {}'.format(orig.size))
         except Exception as e:
@@ -171,19 +173,20 @@ class DataLoader(threading.Thread):
             self.files.remove(f)
             return
 
-        seed = orig.filter(PIL.ImageFilter.GaussianBlur(radius=args.train_blur)) if args.train_blur else orig
-        seed = seed.resize((orig.size[0]//args.zoom, orig.size[1]//args.zoom), resample=PIL.Image.LANCZOS)
-
+        if args.train_blur:
+            seed = orig.filter(PIL.ImageFilter.GaussianBlur(radius=random.randint(0, args.train_blur*2)))
+        if args.zoom > 1:
+            seed = seed.resize((orig.size[0]//args.zoom, orig.size[1]//args.zoom), resample=PIL.Image.LANCZOS)
         if args.train_jpeg:
             buffer = io.BytesIO()
             seed.save(buffer, format='jpeg', quality=args.train_jpeg+random.randrange(-15,+15))
             seed = PIL.Image.open(buffer)
 
+        orig = scipy.misc.fromimage(orig, mode='RGB').astype(np.float32)
         seed = scipy.misc.fromimage(seed, mode='RGB').astype(np.float32)
-        seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1))\
-                                                            if args.train_noise else 0.0
 
-        orig = scipy.misc.fromimage(orig).astype(np.float32)
+        if args.train_noise:
+            seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1)) ** 4.0
 
         for _ in range(args.buffer_similar):
             h = random.randint(0, seed.shape[0] - self.seed_shape)
