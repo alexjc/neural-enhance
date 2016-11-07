@@ -94,7 +94,7 @@ The easiest way to get up-and-running is to `install Docker <https://www.docker.
     # Now run any of the examples above using this alias, without the `.py` extension.
     enhance --zoom=1 --model=small images/example.jpg
 
-**Multiple Images** — To enhance multiple images in a row (faster) from a folder or widlcard specification, make sure to quote the argument to the alias command:
+**Multiple Images** — To enhance multiple images in a row (faster) from a folder or wildcard specification, make sure to quote the argument to the alias command:
 
 .. code:: bash
     
