@@ -268,7 +268,7 @@ class Model(object):
         return list(self.network.values())[-1]
 
     def make_layer(self, name, input, units, filter_size=(3,3), stride=(1,1), pad=(1,1), alpha=0.25):
-        conv = ConvLayer(input, units, filter_size, stride=stride, pad=(0,0), nonlinearity=None)
+        conv = ConvLayer(input, units, filter_size, stride=stride, pad=pad, nonlinearity=None)
         prelu = lasagne.layers.ParametricRectifierLayer(conv, alpha=lasagne.init.Constant(alpha))
         self.network[name+'x'] = conv
         self.network[name+'>'] = prelu
