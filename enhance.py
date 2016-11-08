@@ -175,6 +175,8 @@ class DataLoader(threading.Thread):
 
         if args.train_blur:
             seed = orig.filter(PIL.ImageFilter.GaussianBlur(radius=random.randint(0, args.train_blur*2)))
+        else:
+            seed = orig
         if args.zoom > 1:
             seed = seed.resize((orig.size[0]//args.zoom, orig.size[1]//args.zoom), resample=PIL.Image.LANCZOS)
         if args.train_jpeg:
