@@ -27,7 +27,7 @@ COPY enhance.py .
 
 # Get a pre-trained neural networks, non-commercial & attribution.
 RUN wget -q "https://github.com/alexjc/neural-enhance/releases/download/v0.2/ne1x-small-0.2.pkl.bz2"
-RUN wget -q "https://github.com/alexjc/neural-enhance/releases/download/v0.2/ne2x-small-0.2.pkl.bz2"
+RUN wget -q "https://github.com/alexjc/neural-enhance/releases/download/v0.2/ne2x-large-0.2.pkl.bz2"
 
 # Set an entrypoint to the main enhance.py script
 ENTRYPOINT ["/opt/conda/bin/python3.5", "enhance.py", "--device=cpu"]
