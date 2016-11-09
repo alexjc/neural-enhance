@@ -44,7 +44,7 @@ add_arg('--train',              default=False, type=str,            help='File p
 add_arg('--train-scales',       default=0, type=int,                help='Randomly resize images this many times.')
 add_arg('--train-blur',         default=None, type=int,             help='Sigma value for gaussian blur preprocess.')
 add_arg('--train-noise',        default=None, type=float,           help='Radius for preprocessing gaussian blur.')
-add_arg('--train-jpeg',         default=None, type=int,             help='JPEG compression level in preprocessing.')
+add_arg('--train-jpeg',         default=[], nargs='+', type=int,    help='JPEG compression level & range in preproc.')
 add_arg('--epochs',             default=10, type=int,               help='Total number of iterations in training.')
 add_arg('--epoch-size',         default=72, type=int,               help='Number of batches trained in an epoch.')
 add_arg('--save-every',         default=10, type=int,               help='Save generator after every training epoch.')
@@ -179,16 +179,15 @@ class DataLoader(threading.Thread):
         if args.zoom > 1:
             seed = seed.resize((orig.size[0]//args.zoom, orig.size[1]//args.zoom), resample=PIL.Image.LANCZOS)
         if args.train_jpeg is not None:
-            buffer = io.BytesIO()
-            seed.save(buffer, format='jpeg', quality=args.train_jpeg+random.randrange(-15,+15))
+            buffer, rng = io.BytesIO(), args.train_jpeg[-1] if len(args.train_jpeg) > 1 else 15
+            seed.save(buffer, format='jpeg', quality=args.train_jpeg+random.randrange(-rng, +rng))
             seed = PIL.Image.open(buffer)
 
         orig = scipy.misc.fromimage(orig).astype(np.float32)
         seed = scipy.misc.fromimage(seed).astype(np.float32)
 
         if args.train_noise is not None:
-            noise = scipy.random.normal(scale=args.train_noise/10.0, size=(seed.shape[0], seed.shape[1], 1))
-            seed += (noise ** 7.0).clip(-args.train_noise, args.train_noise)
+            seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1))
 
         for _ in range(seed.shape[0] * seed.shape[1] // (args.buffer_fraction * self.seed_shape ** 2)):
             h = random.randint(0, seed.shape[0] - self.seed_shape)
