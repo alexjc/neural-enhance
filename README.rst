@@ -35,16 +35,26 @@ The default is to use ``--device=cpu``, if you have NVIDIA card setup with CUDA 
 1.a) Enhancing Images
 ---------------------
 
+A list of example command lines you can use with the pre-trained models provided in the GitHub releases:
+
 .. code:: bash
 
-    # Run the super-resolution script for one image, factor 1:1.
-    python3 enhance.py --zoom=1 example.png
+    # Run the super-resolution script to repair JPEG artefacts, zoom factor 1:1.
+    python3 enhance.py --type=photo --model=repair --zoom=1 broken.jpg
 
-    # Also process multiple files with a single run, factor 2:1.
-    python3 enhance.py --zoom=2 file1.jpg file2.jpg
+    # Process multiple good quality images with a single run, zoom factor 2:1.
+    python3 enhance.py --type=photo --zoom=2 file1.jpg file2.jpg
 
     # Display output images that were given `_ne?x.png` suffix.
     open *_ne?x.png
+
+Here's a list of currently supported models, image types, and zoom levels in one table.
+
+==================  =====================  ====================  =====================  ====================
+                     ``--model=default``    ``--model=repair``    ``--model=denoise``    ``--model=deblur``
+==================  =====================  ====================  =====================  ====================
+ ``--type=photo``            2x                     1x                     …                      …         
+==================  =====================  ====================  =====================  ====================
 
 
 1.b) Training Super-Resolution

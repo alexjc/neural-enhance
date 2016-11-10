@@ -39,7 +39,8 @@ add_arg('files',                nargs='*', default=[])
 add_arg('--zoom',               default=1, type=int,                help='Resolution increase factor for inference.')
 add_arg('--rendering-tile',     default=128, type=int,              help='Size of tiles used for rendering images.')
 add_arg('--rendering-overlap',  default=32, type=int,               help='Number of pixels padding around each tile.')
-add_arg('--model',              default='small', type=str,          help='Name of the neural network to load/save.')
+add_arg('--type',               default='photo', type=str,          help='Name of the neural network to load/save.')
+add_arg('--model',              default='default', type=str,        help='Specific trained version of the model.')
 add_arg('--train',              default=False, type=str,            help='File pattern to load for training.')
 add_arg('--train-scales',       default=0, type=int,                help='Randomly resize images this many times.')
 add_arg('--train-blur',         default=None, type=int,             help='Sigma value for gaussian blur preprocess.')
@@ -371,12 +372,12 @@ class Model(object):
         params = {k: [cast(p) for p in l.get_params()] for (k, l) in self.list_generator_layers()}
         config = {k: getattr(args, k) for k in ['generator_blocks', 'generator_residual', 'generator_filters'] + \
                                                ['generator_upscale', 'generator_downscale']}
-        filename = 'ne%ix-%s-%s.pkl.bz2' % (args.zoom, args.model, __version__)
+        filename = 'ne%ix-%s-%s-%s.pkl.bz2' % (args.zoom, args.type, args.model, __version__)
         pickle.dump((config, params), bz2.open(filename, 'wb'))
         print('  - Saved model as `{}` after training.'.format(filename))
 
     def load_model(self):
-        filename = 'ne%ix-%s-%s.pkl.bz2' % (args.zoom, args.model, __version__)
+        filename = 'ne%ix-%s-%s-%s.pkl.bz2' % (args.zoom, args.type, args.model, __version__)
         if not os.path.exists(filename):
             if args.train: return {}, {}
             error("Model file with pre-trained convolution layers not found. Download it here...",
