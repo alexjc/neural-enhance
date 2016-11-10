@@ -65,7 +65,7 @@ Pre-trained models are provided in the GitHub releases.  Training your own is a 
 .. code:: bash
 
     # Remove the model file as don't want to reload the data to fine-tune it.
-    rm -f ne4x*.pkl.bz2
+    rm -f ne?x*.pkl.bz2
 
     # Pre-train the model using perceptual loss from paper [1] below.
     python3.4 enhance.py --train "data/*.jpg" --model custom --scales=2 --epochs=50 \
@@ -79,7 +79,7 @@ Pre-trained models are provided in the GitHub releases.  Training your own is a 
              --discriminator-size=64
 
     # The newly trained model is output into this file...
-    ls ne4x-custom-*.pkl.bz2
+    ls ne?x-custom-*.pkl.bz2
 
 
 .. image:: docs/BankLobby_example.gif
@@ -109,14 +109,14 @@ Here's the simplest way you can call the script using ``docker``, assuming you'r
     alias enhance='function ne() { docker run --rm -v "$(pwd)/`dirname ${@:$#}`":/ne/input -it alexjc/neural-enhance ${@:1:$#-1} "input/`basename ${@:$#}`"; }; ne'
 
     # Now run any of the examples above using this alias, without the `.py` extension.
-    enhance --zoom=1 --model=small images/example.jpg
+    enhance --zoom=1 --model=repair images/broken.jpg
 
 **Multiple Images** — To enhance multiple images in a row (faster) from a folder or widlcard specification, make sure to quote the argument to the alias command:
 
 .. code:: bash
     
     # Process multiple images, make sure to quote the argument!
-    enhance --zoom=2 --model=small "images/*.jpg"
+    enhance --zoom=2 "images/*.jpg"
 
 If you want to run on your NVIDIA GPU, you can instead change the alias to use the image ``alexjc/neural-enhance:gpu`` which comes with CUDA and CUDNN pre-installed.  Then run it within `nvidia-docker <https://github.com/NVIDIA/nvidia-docker>`_ and it should use your physical hardware!
 
