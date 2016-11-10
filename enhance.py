@@ -14,7 +14,7 @@
 # without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 #
 
-__version__ = '0.2'
+__version__ = '0.3'
 
 import io
 import os
@@ -39,19 +39,21 @@ add_arg('files',                nargs='*', default=[])
 add_arg('--zoom',               default=1, type=int,                help='Resolution increase factor for inference.')
 add_arg('--rendering-tile',     default=128, type=int,              help='Size of tiles used for rendering images.')
 add_arg('--rendering-overlap',  default=32, type=int,               help='Number of pixels padding around each tile.')
-add_arg('--model',              default='small', type=str,          help='Name of the neural network to load/save.')
+add_arg('--rendering-histogram',default=False, action='store_true', help='Match color histogram of output to input.')
+add_arg('--type',               default='photo', type=str,          help='Name of the neural network to load/save.')
+add_arg('--model',              default='default', type=str,        help='Specific trained version of the model.')
 add_arg('--train',              default=False, type=str,            help='File pattern to load for training.')
 add_arg('--train-scales',       default=0, type=int,                help='Randomly resize images this many times.')
 add_arg('--train-blur',         default=None, type=int,             help='Sigma value for gaussian blur preprocess.')
 add_arg('--train-noise',        default=None, type=float,           help='Radius for preprocessing gaussian blur.')
-add_arg('--train-jpeg',         default=None, type=int,             help='JPEG compression level in preprocessing.')
+add_arg('--train-jpeg',         default=[], nargs='+', type=int,    help='JPEG compression level & range in preproc.')
 add_arg('--epochs',             default=10, type=int,               help='Total number of iterations in training.')
 add_arg('--epoch-size',         default=72, type=int,               help='Number of batches trained in an epoch.')
 add_arg('--save-every',         default=10, type=int,               help='Save generator after every training epoch.')
 add_arg('--batch-shape',        default=192, type=int,              help='Resolution of images in training batch.')
 add_arg('--batch-size',         default=15, type=int,               help='Number of images per training batch.')
 add_arg('--buffer-size',        default=1500, type=int,             help='Total image fragments kept in cache.')
-add_arg('--buffer-similar',     default=5, type=int,                help='Fragments cached for each image loaded.')
+add_arg('--buffer-fraction',    default=5, type=int,                help='Fragments cached for each image loaded.')
 add_arg('--learning-rate',      default=1E-4, type=float,           help='Parameter for the ADAM optimizer.')
 add_arg('--learning-period',    default=75, type=int,               help='How often to decay the learning rate.')
 add_arg('--learning-decay',     default=0.5, type=float,            help='How much to decay the learning rate.')
@@ -137,7 +139,7 @@ class DataLoader(threading.Thread):
         self.data_ready = threading.Event()
         self.data_copied = threading.Event()
 
-        self.orig_shape, self.seed_shape = args.batch_shape, int(args.batch_shape / args.zoom)
+        self.orig_shape, self.seed_shape = args.batch_shape, args.batch_shape // args.zoom
 
         self.orig_buffer = np.zeros((args.buffer_size, 3, self.orig_shape, self.orig_shape), dtype=np.float32)
         self.seed_buffer = np.zeros((args.buffer_size, 3, self.seed_shape, self.seed_shape), dtype=np.float32)
@@ -163,7 +165,7 @@ class DataLoader(threading.Thread):
         try:
             orig = PIL.Image.open(filename).convert('RGB')
             scale = 2 ** random.randint(0, args.train_scales)
-            if scale > 1 and all(s > args.batch_shape * scale for s in orig.size):
+            if scale > 1 and all(s//scale >= args.batch_shape for s in orig.size):
                 orig = orig.resize((orig.size[0]//scale, orig.size[1]//scale), resample=PIL.Image.LANCZOS)
             if any(s < args.batch_shape for s in orig.size):
                 raise ValueError('Image is too small for training with size {}'.format(orig.size))
@@ -173,22 +175,23 @@ class DataLoader(threading.Thread):
             self.files.remove(f)
             return
 
-        if args.train_blur:
-            seed = orig.filter(PIL.ImageFilter.GaussianBlur(radius=random.randint(0, args.train_blur*2)))
+        seed = orig
+        if args.train_blur is not None:
+            seed = seed.filter(PIL.ImageFilter.GaussianBlur(radius=random.randint(0, args.train_blur*2)))
         if args.zoom > 1:
             seed = seed.resize((orig.size[0]//args.zoom, orig.size[1]//args.zoom), resample=PIL.Image.LANCZOS)
-        if args.train_jpeg:
-            buffer = io.BytesIO()
-            seed.save(buffer, format='jpeg', quality=args.train_jpeg+random.randrange(-15,+15))
+        if args.train_jpeg is not None:
+            buffer, rng = io.BytesIO(), args.train_jpeg[-1] if len(args.train_jpeg) > 1 else 15
+            seed.save(buffer, format='jpeg', quality=args.train_jpeg+random.randrange(-rng, +rng))
             seed = PIL.Image.open(buffer)
 
-        orig = scipy.misc.fromimage(orig, mode='RGB').astype(np.float32)
-        seed = scipy.misc.fromimage(seed, mode='RGB').astype(np.float32)
+        orig = scipy.misc.fromimage(orig).astype(np.float32)
+        seed = scipy.misc.fromimage(seed).astype(np.float32)
 
-        if args.train_noise:
-            seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1)) ** 4.0
+        if args.train_noise is not None:
+            seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1))
 
-        for _ in range(seed.shape[0] * seed.shape[1] // self.seed_shape * 2):
+        for _ in range(seed.shape[0] * seed.shape[1] // (args.buffer_fraction * self.seed_shape ** 2)):
             h = random.randint(0, seed.shape[0] - self.seed_shape)
             w = random.randint(0, seed.shape[1] - self.seed_shape)
             seed_chunk = seed[h:h+self.seed_shape, w:w+self.seed_shape]
@@ -200,8 +203,8 @@ class DataLoader(threading.Thread):
                 self.data_copied.clear()
 
             i = self.available.pop()
-            self.orig_buffer[i] = np.transpose(orig_chunk.astype(np.float32) / 127.5 - 1.0, (2, 0, 1))
-            self.seed_buffer[i] = np.transpose(seed_chunk.astype(np.float32) / 127.5 - 1.0, (2, 0, 1))
+            self.orig_buffer[i] = np.transpose(orig_chunk.astype(np.float32) / 255.0 - 0.5, (2, 0, 1))
+            self.seed_buffer[i] = np.transpose(seed_chunk.astype(np.float32) / 255.0 - 0.5, (2, 0, 1))
             self.ready.add(i)
 
             if len(self.ready) >= args.batch_size:
@@ -275,8 +278,8 @@ class Model(object):
         return prelu
 
     def make_block(self, name, input, units):
-        self.make_layer(name+'-A', input, units, alpha=0.25)
-        self.make_layer(name+'-B', self.last_layer(), units, alpha=1.0)
+        self.make_layer(name+'-A', input, units, alpha=0.1)
+        # self.make_layer(name+'-B', self.last_layer(), units, alpha=1.0)
         return ElemwiseSumLayer([input, self.last_layer()]) if args.generator_residual else self.last_layer()
 
     def setup_generator(self, input, config):
@@ -285,9 +288,7 @@ class Model(object):
 
         units_iter = extend(args.generator_filters)
         units = next(units_iter)
-        self.make_layer('iter.0-A', input, units, filter_size=(5,5), pad=(2,2))
-        self.make_layer('iter.0-B', self.last_layer(), units, filter_size=(5,5), pad=(2,2))
-        self.network['iter.0'] = self.last_layer()
+        self.make_layer('iter.0', input, units, filter_size=(7,7), pad=(3,3))
 
         for i in range(0, args.generator_downscale):
             self.make_layer('downscale%i'%i, self.last_layer(), next(units_iter), filter_size=(4,4), stride=(2,2))
@@ -298,18 +299,16 @@ class Model(object):
 
         for i in range(0, args.generator_upscale):
             u = next(units_iter)
-            self.make_layer('upscale%i.3'%i, self.last_layer(), u*4)
-            self.network['upscale%i.2'%i] = SubpixelReshuffleLayer(self.last_layer(), u, 2)
-            self.make_layer('upscale%i.1'%i, self.last_layer(), u)
+            self.make_layer('upscale%i.2'%i, self.last_layer(), u*4)
+            self.network['upscale%i.1'%i] = SubpixelReshuffleLayer(self.last_layer(), u, 2)
 
-        self.network['out'] = ConvLayer(self.last_layer(), 3, filter_size=(3,3), stride=(1,1), pad=(1,1),
-                                                              nonlinearity=lasagne.nonlinearities.tanh)
+        self.network['out'] = ConvLayer(self.last_layer(), 3, filter_size=(7,7), pad=(3,3), nonlinearity=None)
 
     def setup_perceptual(self, input):
         """Use lasagne to create a network of convolution layers using pre-trained VGG19 weights.
         """
         offset = np.array([103.939, 116.779, 123.680], dtype=np.float32).reshape((1,3,1,1))
-        self.network['percept'] = lasagne.layers.NonlinearityLayer(input, lambda x: ((x+1.0)*127.5) - offset)
+        self.network['percept'] = lasagne.layers.NonlinearityLayer(input, lambda x: ((x+0.5)*255.0) - offset)
 
         self.network['mse'] = self.network['percept']
         self.network['conv1_1'] = ConvLayer(self.network['percept'], 64, 3, pad=1)
@@ -369,23 +368,26 @@ class Model(object):
             name = list(self.network.keys())[list(self.network.values()).index(l)]
             yield (name, l)
 
+    def get_filename(self):
+        filename = 'ne%ix-%s-%s-%s.pkl.bz2' % (args.zoom, args.type, args.model, __version__)
+        return os.path.join(os.path.dirname(__file__), filename)
+
     def save_generator(self):
         def cast(p): return p.get_value().astype(np.float16)
         params = {k: [cast(p) for p in l.get_params()] for (k, l) in self.list_generator_layers()}
         config = {k: getattr(args, k) for k in ['generator_blocks', 'generator_residual', 'generator_filters'] + \
                                                ['generator_upscale', 'generator_downscale']}
-        filename = 'ne%ix-%s-%s.pkl.bz2' % (args.zoom, args.model, __version__)
-        pickle.dump((config, params), bz2.open(filename, 'wb'))
-        print('  - Saved model as `{}` after training.'.format(filename))
+        
+        pickle.dump((config, params), bz2.open(self.get_filename(), 'wb'))
+        print('  - Saved model as `{}` after training.'.format(self.get_filename()))
 
     def load_model(self):
-        filename = 'ne%ix-%s-%s.pkl.bz2' % (args.zoom, args.model, __version__)
-        if not os.path.exists(filename):
+        if not os.path.exists(self.get_filename()):
             if args.train: return {}, {}
             error("Model file with pre-trained convolution layers not found. Download it here...",
-                  "https://github.com/alexjc/neural-enhance/releases/download/v%s/%s"%(__version__, filename))
-        print('  - Loaded file `{}` with trained model.'.format(filename))
-        return pickle.load(bz2.open(filename, 'rb'))
+                  "https://github.com/alexjc/neural-enhance/releases/download/v%s/%s"%(__version__, self.get_filename()))
+        print('  - Loaded file `{}` with trained model.'.format(self.get_filename()))
+        return pickle.load(bz2.open(self.get_filename(), 'rb'))
 
     def load_generator(self, params):
         if len(params) == 0: return
@@ -393,7 +395,7 @@ class Model(object):
             assert k in params, "Couldn't find layer `%s` in loaded model.'" % k
             assert len(l.get_params()) == len(params[k]), "Mismatch in types of layers."
             for p, v in zip(l.get_params(), params[k]):
-                assert v.shape == p.get_value().shape, "Mismatch in number of parameters."
+                assert v.shape == p.get_value().shape, "Mismatch in number of parameters for layer {}.".format(k)
                 p.set_value(v.astype(np.float32))
 
     #------------------------------------------------------------------------------------------------------------------
@@ -465,7 +467,7 @@ class NeuralEnhancer(object):
         print('{}'.format(ansi.ENDC))
 
     def imsave(self, fn, img):
-        scipy.misc.toimage(np.transpose(img + 1.0, (1, 2, 0)) * 127.5, cmin=0, cmax=255).save(fn)
+        scipy.misc.toimage(np.transpose(img + 0.5, (1, 2, 0)).clip(0.0, 1.0) * 255.0, cmin=0, cmax=255).save(fn)
 
     def show_progress(self, orign, scald, repro):
         os.makedirs('valid', exist_ok=True)
@@ -534,6 +536,14 @@ class NeuralEnhancer(object):
         self.model.save_generator()
         print(ansi.ENDC)
 
+    def match_histograms(self, A, B, rng=(0.0, 255.0), bins=64):
+        (Ha, Xa), (Hb, Xb) = [np.histogram(i, bins=bins, range=rng, density=True) for i in [A, B]]
+        X = np.linspace(rng[0], rng[1], bins, endpoint=True)
+        Hpa, Hpb = [np.cumsum(i) * (rng[1] - rng[0]) ** 2 / float(bins) for i in [Ha, Hb]]
+        inv_Ha = scipy.interpolate.interp1d(X, Hpa, bounds_error=False)
+        map_Hb = scipy.interpolate.interp1d(Hpb, X, bounds_error=False)
+        return map_Hb(inv_Ha(A))
+
     def process(self, original):
         # Snap the image to a shape that's compatible with the generator (2x, 4x)
         s = 2 ** max(args.generator_upscale, args.generator_downscale)
@@ -547,11 +557,18 @@ class NeuralEnhancer(object):
 
         # Iterate through the tile coordinates and pass them through the network.
         for y, x in itertools.product(range(0, original.shape[0], s), range(0, original.shape[1], s)):
-            img = np.transpose(image[y:y+p*2+s,x:x+p*2+s,:] / 127.5 - 1.0, (2, 0, 1))[np.newaxis].astype(np.float32)
+            img = np.transpose(image[y:y+p*2+s,x:x+p*2+s,:] / 255.0 - 0.5, (2, 0, 1))[np.newaxis].astype(np.float32)
             *_, repro = self.model.predict(img)
-            output[y*z:(y+s)*z,x*z:(x+s)*z,:] = np.transpose(repro[0] + 1.0, (1, 2, 0))[p*z:-p*z,p*z:-p*z,:]
+            output[y*z:(y+s)*z,x*z:(x+s)*z,:] = np.transpose(repro[0] + 0.5, (1, 2, 0))[p*z:-p*z,p*z:-p*z,:]
             print('.', end='', flush=True)
-        return scipy.misc.toimage(output * 127.5, cmin=0, cmax=255)
+        output = output.clip(0.0, 1.0) * 255.0
+
+        # Match color histograms if the user specified this option.
+        if args.rendering_histogram:
+            for i in range(3):
+                output[:,:,i] = self.match_histograms(output[:,:,i], original[:,:,i])
+
+        return scipy.misc.toimage(output, cmin=0, cmax=255)
 
 
 if __name__ == "__main__":

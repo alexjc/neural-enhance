@@ -35,16 +35,26 @@ The default is to use ``--device=cpu``, if you have NVIDIA card setup with CUDA 
 1.a) Enhancing Images
 ---------------------
 
+A list of example command lines you can use with the pre-trained models provided in the GitHub releases:
+
 .. code:: bash
 
-    # Run the super-resolution script for one image, factor 1:1.
-    python3 enhance.py --zoom=1 example.png
+    # Run the super-resolution script to repair JPEG artefacts, zoom factor 1:1.
+    python3 enhance.py --type=photo --model=repair --zoom=1 broken.jpg
 
-    # Also process multiple files with a single run, factor 2:1.
-    python3 enhance.py --zoom=2 file1.jpg file2.jpg
+    # Process multiple good quality images with a single run, zoom factor 2:1.
+    python3 enhance.py --type=photo --zoom=2 file1.jpg file2.jpg
 
     # Display output images that were given `_ne?x.png` suffix.
     open *_ne?x.png
+
+Here's a list of currently supported models, image types, and zoom levels in one table.
+
+==================  =====================  ====================  =====================  ====================
+     FEATURES        ``--model=default``    ``--model=repair``    ``--model=denoise``    ``--model=deblur``
+==================  =====================  ====================  =====================  ====================
+ ``--type=photo``            2x                     1x                     …                      …         
+==================  =====================  ====================  =====================  ====================
 
 
 1.b) Training Super-Resolution
@@ -55,7 +65,7 @@ Pre-trained models are provided in the GitHub releases.  Training your own is a 
 .. code:: bash
 
     # Remove the model file as don't want to reload the data to fine-tune it.
-    rm -f ne4x*.pkl.bz2
+    rm -f ne?x*.pkl.bz2
 
     # Pre-train the model using perceptual loss from paper [1] below.
     python3.4 enhance.py --train "data/*.jpg" --model custom --scales=2 --epochs=50 \
@@ -69,7 +79,7 @@ Pre-trained models are provided in the GitHub releases.  Training your own is a 
              --discriminator-size=64
 
     # The newly trained model is output into this file...
-    ls ne4x-custom-*.pkl.bz2
+    ls ne?x-custom-*.pkl.bz2
 
 
 .. image:: docs/BankLobby_example.gif
@@ -84,22 +94,29 @@ Pre-trained models are provided in the GitHub releases.  Training your own is a 
 
 The easiest way to get up-and-running is to `install Docker <https://www.docker.com/>`_. Then, you should be able to download and run the pre-built image using the ``docker`` command line tool.  Find out more about the ``alexjc/neural-enhance`` image on its `Docker Hub <https://hub.docker.com/r/alexjc/neural-enhance/>`_ page.
 
-**Single Image** — We suggest you setup an alias called ``enhance`` to automatically expose the folder containing your specified image, so the script can read it and store results where you can access them.  This is how you can do it in your terminal console on OSX or Linux:
+Here's the simplest way you can call the script using ``docker``, assuming you're familiar with using ``-v` to mount folders you can use this directly to specify files to enhance:
+
+.. code:: bash
+
+    # Download the Docker image and show the help text to make sure it works.
+    docker run --rm -v `pwd`:/ne/input -it alexjc/neural-enhance --help
+
+**Single Image** — In practice, we suggest you setup an alias called ``enhance`` to automatically expose the folder containing your specified image, so the script can read it and store results where you can access them.  This is how you can do it in your terminal console on OSX or Linux:
 
 .. code:: bash
 
     # Setup the alias. Put this in your .bashrc or .zshrc file so it's available at startup.
-    alias enhance='function ne() { docker run --rm -v "$(pwd)/`dirname ${@:$#}`":/ne/input -it alexjc/neural-enhance ${@:1:-1} "input/`basename ${@:$#}`"; }; ne'
+    alias enhance='function ne() { docker run --rm -v "$(pwd)/`dirname ${@:$#}`":/ne/input -it alexjc/neural-enhance ${@:1:$#-1} "input/`basename ${@:$#}`"; }; ne'
 
     # Now run any of the examples above using this alias, without the `.py` extension.
-    enhance --zoom=1 --model=small images/example.jpg
+    enhance --zoom=1 --model=repair images/broken.jpg
 
 **Multiple Images** — To enhance multiple images in a row (faster) from a folder or widlcard specification, make sure to quote the argument to the alias command:
 
 .. code:: bash
     
     # Process multiple images, make sure to quote the argument!
-    enhance --zoom=2 --model=small "images/*.jpg"
+    enhance --zoom=2 "images/*.jpg"
 
 If you want to run on your NVIDIA GPU, you can instead change the alias to use the image ``alexjc/neural-enhance:gpu`` which comes with CUDA and CUDNN pre-installed.  Then run it within `nvidia-docker <https://github.com/NVIDIA/nvidia-docker>`_ and it should use your physical hardware!
 
