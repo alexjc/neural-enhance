@@ -51,7 +51,7 @@ A list of example command lines you can use with the pre-trained models provided
 Here's a list of currently supported models, image types, and zoom levels in one table.
 
 ==================  =====================  ====================  =====================  ====================
-                     ``--model=default``    ``--model=repair``    ``--model=denoise``    ``--model=deblur``
+     FEATURES        ``--model=default``    ``--model=repair``    ``--model=denoise``    ``--model=deblur``
 ==================  =====================  ====================  =====================  ====================
  ``--type=photo``            2x                     1x                     …                      …         
 ==================  =====================  ====================  =====================  ====================
