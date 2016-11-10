@@ -94,12 +94,19 @@ Pre-trained models are provided in the GitHub releases.  Training your own is a 
 
 The easiest way to get up-and-running is to `install Docker <https://www.docker.com/>`_. Then, you should be able to download and run the pre-built image using the ``docker`` command line tool.  Find out more about the ``alexjc/neural-enhance`` image on its `Docker Hub <https://hub.docker.com/r/alexjc/neural-enhance/>`_ page.
 
-**Single Image** — We suggest you setup an alias called ``enhance`` to automatically expose the folder containing your specified image, so the script can read it and store results where you can access them.  This is how you can do it in your terminal console on OSX or Linux:
+Here's the simplest way you can call the script using ``docker``, assuming you're familiar with using ``-v` to mount folders you can use this directly to specify files to enhance:
+
+.. code:: bash
+
+    # Download the Docker image and show the help text to make sure it works.
+    docker run --rm -v `pwd`:/ne/input -it alexjc/neural-enhance --help
+
+**Single Image** — In practice, we suggest you setup an alias called ``enhance`` to automatically expose the folder containing your specified image, so the script can read it and store results where you can access them.  This is how you can do it in your terminal console on OSX or Linux:
 
 .. code:: bash
 
     # Setup the alias. Put this in your .bashrc or .zshrc file so it's available at startup.
-    alias enhance='function ne() { docker run --rm -v "$(pwd)/`dirname ${@:$#}`":/ne/input -it alexjc/neural-enhance ${@:1:-1} "input/`basename ${@:$#}`"; }; ne'
+    alias enhance='function ne() { docker run --rm -v "$(pwd)/`dirname ${@:$#}`":/ne/input -it alexjc/neural-enhance ${@:1:$#-1} "input/`basename ${@:$#}`"; }; ne'
 
     # Now run any of the examples above using this alias, without the `.py` extension.
     enhance --zoom=1 --model=small images/example.jpg
