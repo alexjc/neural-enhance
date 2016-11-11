@@ -3,7 +3,7 @@ Neural Enhance
 
 .. image:: docs/OldStation_example.gif
 
-**Example #1** — Old Station: `view comparison <http://5.9.70.47:4141/w/0f5177f4-9ce6-11e6-992c-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/oYhbBv>`_ CC-BY-SA @siv-athens.
+**Example #1** — Old Station: `view comparison <http://enhance.nucl.ai/w/0f5177f4-9ce6-11e6-992c-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/oYhbBv>`_ CC-BY-SA @siv-athens.
 
 ----
 
@@ -20,7 +20,7 @@ The catch? The neural network is hallucinating details based on its training fro
 |Python Version| |License Type| |Project Stars|
 
 .. image:: docs/EnhanceCSI_example.png
-    :target: http://5.9.70.47:4141/w/8581db92-9d61-11e6-990b-c86000be451f/view
+    :target: http://enhance.nucl.ai/w/8581db92-9d61-11e6-990b-c86000be451f/view
 
 1. Examples & Usage
 ===================
@@ -84,7 +84,7 @@ Pre-trained models are provided in the GitHub releases.  Training your own is a 
 
 .. image:: docs/BankLobby_example.gif
 
-**Example #2** — Bank Lobby: `view comparison <http://5.9.70.47:4141/w/38d10880-9ce6-11e6-becb-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/6a8cwm>`_ CC-BY-SA @benarent.
+**Example #2** — Bank Lobby: `view comparison <http://enhance.nucl.ai/w/38d10880-9ce6-11e6-becb-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/6a8cwm>`_ CC-BY-SA @benarent.
 
 2. Installation & Setup
 =======================
@@ -202,7 +202,7 @@ It seems your terminal is misconfigured and not compatible with the way Python t
 
 .. image:: docs/StreetView_example.gif
 
-**Example #4** — Street View: `view comparison <http://5.9.70.47:4141/w/3b3c8054-9d00-11e6-9558-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/gnxcXH>`_ CC-BY-SA @cyalex.
+**Example #4** — Street View: `view comparison <http://enhance.nucl.ai/w/3b3c8054-9d00-11e6-9558-c86000be451f/view>`_ in 24-bit HD, `original photo <https://flic.kr/p/gnxcXH>`_ CC-BY-SA @cyalex.
 
 ----
 
