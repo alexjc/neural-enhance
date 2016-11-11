@@ -36,7 +36,7 @@ parser = argparse.ArgumentParser(description='Generate a new image by applying s
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 add_arg = parser.add_argument
 add_arg('files',                nargs='*', default=[])
-add_arg('--zoom',               default=1, type=int,                help='Resolution increase factor for inference.')
+add_arg('--zoom',               default=2, type=int,                help='Resolution increase factor for inference.')
 add_arg('--rendering-tile',     default=128, type=int,              help='Size of tiles used for rendering images.')
 add_arg('--rendering-overlap',  default=32, type=int,               help='Number of pixels padding around each tile.')
 add_arg('--rendering-histogram',default=False, action='store_true', help='Match color histogram of output to input.')
