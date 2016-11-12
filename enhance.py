@@ -37,8 +37,8 @@ parser = argparse.ArgumentParser(description='Generate a new image by applying s
 add_arg = parser.add_argument
 add_arg('files',                nargs='*', default=[])
 add_arg('--zoom',               default=2, type=int,                help='Resolution increase factor for inference.')
-add_arg('--rendering-tile',     default=128, type=int,              help='Size of tiles used for rendering images.')
-add_arg('--rendering-overlap',  default=32, type=int,               help='Number of pixels padding around each tile.')
+add_arg('--rendering-tile',     default=80, type=int,               help='Size of tiles used for rendering images.')
+add_arg('--rendering-overlap',  default=24, type=int,               help='Number of pixels padding around each tile.')
 add_arg('--rendering-histogram',default=False, action='store_true', help='Match color histogram of output to input.')
 add_arg('--type',               default='photo', type=str,          help='Name of the neural network to load/save.')
 add_arg('--model',              default='default', type=str,        help='Specific trained version of the model.')
