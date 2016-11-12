@@ -542,7 +542,7 @@ class NeuralEnhancer(object):
         Hpa, Hpb = [np.cumsum(i) * (rng[1] - rng[0]) ** 2 / float(bins) for i in [Ha, Hb]]
         inv_Ha = scipy.interpolate.interp1d(X, Hpa, bounds_error=False)
         map_Hb = scipy.interpolate.interp1d(Hpb, X, bounds_error=False)
-        return map_Hb(inv_Ha(A))
+        return map_Hb(inv_Ha(A).clip(0.0, 255.0))
 
     def process(self, original):
         # Snap the image to a shape that's compatible with the generator (2x, 4x)
