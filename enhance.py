@@ -182,7 +182,7 @@ class DataLoader(threading.Thread):
             seed = seed.resize((orig.size[0]//args.zoom, orig.size[1]//args.zoom), resample=PIL.Image.LANCZOS)
         if len(args.train_jpeg) > 0:
             buffer, rng = io.BytesIO(), args.train_jpeg[-1] if len(args.train_jpeg) > 1 else 15
-            seed.save(buffer, format='jpeg', quality=args.train_jpeg+random.randrange(-rng, +rng))
+            seed.save(buffer, format='jpeg', quality=args.train_jpeg[0]+random.randrange(-rng, +rng))
             seed = PIL.Image.open(buffer)
 
         orig = scipy.misc.fromimage(orig).astype(np.float32)
