@@ -26,8 +26,9 @@ RUN /opt/conda/bin/python3.5 -m pip install -q -r "requirements.txt"
 COPY enhance.py .
 
 # Get a pre-trained neural networks, non-commercial & attribution.
+RUN wged -q "https://github.com/alexjc/neural-enhance/releases/download/v0.3/ne1x-photo-deblur-0.3.pkl.bz2"
 RUN wget -q "https://github.com/alexjc/neural-enhance/releases/download/v0.3/ne1x-photo-repair-0.3.pkl.bz2"
 RUN wget -q "https://github.com/alexjc/neural-enhance/releases/download/v0.3/ne2x-photo-default-0.3.pkl.bz2"
-
+RUN wget -q "https://github.com/alexjc/neural-enhance/releases/download/v0.3/ne4x-photo-default-0.3.pkl.bz2"
 # Set an entrypoint to the main enhance.py script
 ENTRYPOINT ["/opt/conda/bin/python3.5", "enhance.py", "--device=cpu"]
