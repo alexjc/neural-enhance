@@ -540,8 +540,8 @@ class NeuralEnhancer(object):
         (Ha, Xa), (Hb, Xb) = [np.histogram(i, bins=bins, range=rng, density=True) for i in [A, B]]
         X = np.linspace(rng[0], rng[1], bins, endpoint=True)
         Hpa, Hpb = [np.cumsum(i) * (rng[1] - rng[0]) ** 2 / float(bins) for i in [Ha, Hb]]
-        inv_Ha = scipy.interpolate.interp1d(X, Hpa, bounds_error=False)
-        map_Hb = scipy.interpolate.interp1d(Hpb, X, bounds_error=False)
+        inv_Ha = scipy.interpolate.interp1d(X, Hpa, bounds_error=False, fill_value='extrapolate')
+        map_Hb = scipy.interpolate.interp1d(Hpb, X, bounds_error=False, fill_value='extrapolate')
         return map_Hb(inv_Ha(A).clip(0.0, 255.0))
 
     def process(self, original):
