@@ -166,7 +166,7 @@ class DataLoader(threading.Thread):
             orig = PIL.Image.open(filename).convert('RGB')
             scale = 2 ** random.randint(0, args.train_scales)
             if scale > 1 and all(s//scale >= args.batch_shape for s in orig.size):
-                orig = orig.resize((orig.size[0]//scale, orig.size[1]//scale), resample=PIL.Image.LANCZOS)
+                orig = orig.resize((orig.size[0]//scale, orig.size[1]//scale), resample=random.randint(0,3))
             if any(s < args.batch_shape for s in orig.size):
                 raise ValueError('Image is too small for training with size {}'.format(orig.size))
         except Exception as e:
@@ -179,7 +179,7 @@ class DataLoader(threading.Thread):
         if args.train_blur is not None:
             seed = seed.filter(PIL.ImageFilter.GaussianBlur(radius=random.randint(0, args.train_blur*2)))
         if args.zoom > 1:
-            seed = seed.resize((orig.size[0]//args.zoom, orig.size[1]//args.zoom), resample=PIL.Image.LANCZOS)
+            seed = seed.resize((orig.size[0]//args.zoom, orig.size[1]//args.zoom), resample=random.randint(0,3))
         if len(args.train_jpeg) > 0:
             buffer, rng = io.BytesIO(), args.train_jpeg[-1] if len(args.train_jpeg) > 1 else 15
             seed.save(buffer, format='jpeg', quality=args.train_jpeg[0]+random.randrange(-rng, +rng))
