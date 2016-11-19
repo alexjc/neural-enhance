@@ -270,16 +270,25 @@ class Model(object):
     def last_layer(self):
         return list(self.network.values())[-1]
 
-    def make_layer(self, name, input, units, filter_size=(3,3), stride=(1,1), pad=(1,1), alpha=0.25):
-        conv = ConvLayer(input, units, filter_size, stride=stride, pad=pad, nonlinearity=None)
-        prelu = lasagne.layers.ParametricRectifierLayer(conv, alpha=lasagne.init.Constant(alpha))
+    def make_layer(self, name, input, units, filter_size=(3,3), stride=(1,1), pad=(1,1), alpha=0.25, reuse=False):
+        clone = '0/'+name.split('/')[-1]
+        if reuse and clone+'x' in self.network:
+            extra = {'W': self.network[clone+'x'].W, 'b': self.network[clone+'x'].b}
+        else:
+            extra = {}
+        conv = ConvLayer(input, units, filter_size, stride=stride, pad=pad, nonlinearity=None, **extra)
         self.network[name+'x'] = conv
-        self.network[name+'>'] = prelu
-        return prelu
+
+        if reuse and clone+'>' in self.network:
+            extra = {'alpha': self.network[clone+'>'].alpha}
+        else:
+            extra = {}
+        self.network[name+'>'] = lasagne.layers.ParametricRectifierLayer(conv, **extra)
+        return self.last_layer()
 
     def make_block(self, name, input, units):
-        self.make_layer(name+'-A', input, units, alpha=0.1)
-        # self.make_layer(name+'-B', self.last_layer(), units, alpha=1.0)
+        self.make_layer(name+'-A', input, units, alpha=0.25)
+        self.make_layer(name+'-B', self.last_layer(), units, alpha=1.0)
         return ElemwiseSumLayer([input, self.last_layer()]) if args.generator_residual else self.last_layer()
 
     def setup_generator(self, input, config):
@@ -288,21 +297,22 @@ class Model(object):
 
         units_iter = extend(args.generator_filters)
         units = next(units_iter)
-        self.make_layer('iter.0', input, units, filter_size=(7,7), pad=(3,3))
+        self.make_layer('encode', input, units, filter_size=(7,7), pad=(3,3))
 
         for i in range(0, args.generator_downscale):
-            self.make_layer('downscale%i'%i, self.last_layer(), next(units_iter), filter_size=(4,4), stride=(2,2))
+            self.make_layer('%i/downscale'%i, self.last_layer(), next(units_iter), filter_size=4, stride=2, reuse=True)
 
         units = next(units_iter)
         for i in range(0, args.generator_blocks):
-            self.make_block('iter.%i'%(i+1), self.last_layer(), units)
+            self.make_block('default.%i'%i, self.last_layer(), units)
 
         for i in range(0, args.generator_upscale):
             u = next(units_iter)
-            self.make_layer('upscale%i.2'%i, self.last_layer(), u*4)
-            self.network['upscale%i.1'%i] = SubpixelReshuffleLayer(self.last_layer(), u, 2)
+            self.make_layer('%i/upscale.2'%i, self.last_layer(), u*4, reuse=True)
+            self.network['%i/upscale.1'%i] = SubpixelReshuffleLayer(self.last_layer(), u, 2)
 
-        self.network['out'] = ConvLayer(self.last_layer(), 3, filter_size=(7,7), pad=(3,3), nonlinearity=None)
+        self.network['decode'] = ConvLayer(self.last_layer(), 3, filter_size=(7,7), pad=(3,3), nonlinearity=None)
+        self.network['out'] = self.last_layer()
 
     def setup_perceptual(self, input):
         """Use lasagne to create a network of convolution layers using pre-trained VGG19 weights.
