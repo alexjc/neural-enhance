@@ -477,12 +477,10 @@ class NeuralEnhancer(object):
             self.imsave('valid/%s_%03i_reprod.png' % (args.model, i), repro[i])
 
     def decay_learning_rate(self):
-        l_r, t_cur = args.learning_rate, 0
-
-        while True:
+        l_r = args.learning_rate
+        for t_cur in itertools.count():
             yield l_r
-            t_cur += 1
-            if t_cur % args.learning_period == 0: l_r *= args.learning_decay
+            if (t_cur+1) % args.learning_period == 0: l_r *= args.learning_decay
 
     def train(self):
         seed_size = args.batch_shape // args.zoom
