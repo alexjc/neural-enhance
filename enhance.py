@@ -43,10 +43,10 @@ add_arg('--rendering-histogram',default=False, action='store_true', help='Match 
 add_arg('--type',               default='photo', type=str,          help='Name of the neural network to load/save.')
 add_arg('--model',              default='default', type=str,        help='Specific trained version of the model.')
 add_arg('--train',              default=False, type=str,            help='File pattern to load for training.')
-add_arg('--train-scales',       default=0, type=int,                help='Randomly resize images this many times.')
-add_arg('--train-blur',         default=None, type=int,             help='Sigma value for gaussian blur preprocess.')
-add_arg('--train-noise',        default=None, type=float,           help='Radius for preprocessing gaussian blur.')
-add_arg('--train-jpeg',         default=[], nargs='+', type=int,    help='JPEG compression level & range in preproc.')
+add_arg('--train-scales',       default=[0], nargs='+', type=int,   help='Randomly resize images, specify min/max.')
+add_arg('--train-blur',         default=[], nargs='+', type=int,    help='Sigma value for gaussian blur, min/max.')
+add_arg('--train-noise',        default=None, type=float,           help='Distribution for gaussian noise preprocess.')
+add_arg('--train-jpeg',         default=[], nargs='+', type=int,    help='JPEG compression level, specify min/max.')
 add_arg('--epochs',             default=10, type=int,               help='Total number of iterations in training.')
 add_arg('--epoch-size',         default=72, type=int,               help='Number of batches trained in an epoch.')
 add_arg('--save-every',         default=10, type=int,               help='Save generator after every training epoch.')
@@ -164,7 +164,7 @@ class DataLoader(threading.Thread):
         filename = os.path.join(self.cwd, f)
         try:
             orig = PIL.Image.open(filename).convert('RGB')
-            scale = 2 ** random.randint(0, args.train_scales)
+            scale = 2 ** random.randint(args.train_scales[0], args.train_scales[-1])
             if scale > 1 and all(s//scale >= args.batch_shape for s in orig.size):
                 orig = orig.resize((orig.size[0]//scale, orig.size[1]//scale), resample=random.randint(0,3))
             if any(s < args.batch_shape for s in orig.size):
@@ -176,13 +176,13 @@ class DataLoader(threading.Thread):
             return
 
         seed = orig
-        if args.train_blur is not None:
-            seed = seed.filter(PIL.ImageFilter.GaussianBlur(radius=random.randint(0, args.train_blur*2)))
+        if len(args.train_blur):
+            seed = seed.filter(PIL.ImageFilter.GaussianBlur(radius=random.randint(args.train_blur[0], args.train_blur[-1])))
         if args.zoom > 1:
             seed = seed.resize((orig.size[0]//args.zoom, orig.size[1]//args.zoom), resample=random.randint(0,3))
         if len(args.train_jpeg) > 0:
-            buffer, rng = io.BytesIO(), args.train_jpeg[-1] if len(args.train_jpeg) > 1 else 15
-            seed.save(buffer, format='jpeg', quality=args.train_jpeg[0]+random.randrange(-rng, +rng))
+            buffer = io.BytesIO()
+            seed.save(buffer, format='jpeg', quality=random.randrange(args.train_jpeg[0], args.train_jpeg[-1]))
             seed = PIL.Image.open(buffer)
 
         orig = scipy.misc.fromimage(orig).astype(np.float32)
