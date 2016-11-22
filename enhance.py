@@ -14,7 +14,7 @@
 # without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 #
 
-__version__ = '0.3'
+__version__ = '0.4'
 
 import io
 import os
@@ -47,6 +47,7 @@ add_arg('--train-scales',       default=[0], nargs='+', type=int,   help='Random
 add_arg('--train-blur',         default=[], nargs='+', type=int,    help='Sigma value for gaussian blur, min/max.')
 add_arg('--train-noise',        default=None, type=float,           help='Distribution for gaussian noise preprocess.')
 add_arg('--train-jpeg',         default=[], nargs='+', type=int,    help='JPEG compression level, specify min/max.')
+add_arg('--train-plugin',       default=None, type=str,             help='Filename for python pre-processing script.')
 add_arg('--epochs',             default=10, type=int,               help='Total number of iterations in training.')
 add_arg('--epoch-size',         default=72, type=int,               help='Number of batches trained in an epoch.')
 add_arg('--save-every',         default=10, type=int,               help='Save generator after every training epoch.')
@@ -139,14 +140,24 @@ class DataLoader(threading.Thread):
         self.data_ready = threading.Event()
         self.data_copied = threading.Event()
 
+        if args.train_plugin is not None:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location('enhance.plugin', 'plugins/{}.py'.format(args.train_plugin))
+            plugin = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(plugin)
+
+            self.iterate_files = plugin.iterate_files
+            self.load_original = plugin.load_original
+            self.load_seed = plugin.load_seed
+
         self.orig_shape, self.seed_shape = args.batch_shape, args.batch_shape // args.zoom
 
         self.orig_buffer = np.zeros((args.buffer_size, 3, self.orig_shape, self.orig_shape), dtype=np.float32)
         self.seed_buffer = np.zeros((args.buffer_size, 3, self.seed_shape, self.seed_shape), dtype=np.float32)
         self.files = glob.glob(args.train)
         if len(self.files) == 0:
-            error("There were no files found to train from searching for `{}`".format(args.train),
-                  "  - Try putting all your images in one folder and using `--train=data/*.jpg`")
+            error('There were no files found to train from searching for `{}`'.format(args.train),
+                  '  - Try putting all your images in one folder and using `--train="data/*.jpg"`')
 
         self.available = set(range(args.buffer_size))
         self.ready = set()
@@ -154,14 +165,13 @@ class DataLoader(threading.Thread):
         self.cwd = os.getcwd()
         self.start()
 
-    def run(self):
+    def iterate_files(self):
         while True:
             random.shuffle(self.files)
             for f in self.files:
-                self.add_to_buffer(f)
+                yield f
 
-    def add_to_buffer(self, f):
-        filename = os.path.join(self.cwd, f)
+    def load_original(self, filename):
         try:
             orig = PIL.Image.open(filename).convert('RGB')
             scale = 2 ** random.randint(args.train_scales[0], args.train_scales[-1])
@@ -169,28 +179,44 @@ class DataLoader(threading.Thread):
                 orig = orig.resize((orig.size[0]//scale, orig.size[1]//scale), resample=random.randint(0,3))
             if any(s < args.batch_shape for s in orig.size):
                 raise ValueError('Image is too small for training with size {}'.format(orig.size))
+            return scipy.misc.fromimage(orig).astype(np.float32)
         except Exception as e:
             warn('Could not load `{}` as image.'.format(filename),
                  '  - Try fixing or removing the file before next run.')
             self.files.remove(f)
-            return
+            return None
 
-        seed = orig
+    def load_seed(self, filename, original, zoom):
+        seed = scipy.misc.toimage(original)
         if len(args.train_blur):
             seed = seed.filter(PIL.ImageFilter.GaussianBlur(radius=random.randint(args.train_blur[0], args.train_blur[-1])))
         if args.zoom > 1:
-            seed = seed.resize((orig.size[0]//args.zoom, orig.size[1]//args.zoom), resample=random.randint(0,3))
+            seed = seed.resize((seed.size[0]//zoom, seed.size[1]//zoom), resample=random.randint(0,3))
+
         if len(args.train_jpeg) > 0:
             buffer = io.BytesIO()
             seed.save(buffer, format='jpeg', quality=random.randrange(args.train_jpeg[0], args.train_jpeg[-1]))
             seed = PIL.Image.open(buffer)
 
-        orig = scipy.misc.fromimage(orig).astype(np.float32)
         seed = scipy.misc.fromimage(seed).astype(np.float32)
-
         if args.train_noise is not None:
             seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1))
+        return seed
 
+    def run(self):
+        for filename in self.iterate_files():
+            f = os.path.join(self.cwd, filename)
+            orig = self.load_original(f)
+            if orig is None: continue
+ 
+            seed = self.load_seed(f, orig, args.zoom)
+            if seed is None: continue
+
+            self.enqueue(orig, seed)
+
+        raise ValueError('Insufficient number of files found for training.')
+
+    def enqueue(self, orig, seed):
         for _ in range(seed.shape[0] * seed.shape[1] // (args.buffer_fraction * self.seed_shape ** 2)):
             h = random.randint(0, seed.shape[0] - self.seed_shape)
             w = random.randint(0, seed.shape[1] - self.seed_shape)
