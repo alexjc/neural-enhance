@@ -387,7 +387,7 @@ class Model(object):
             error("Model file with pre-trained convolution layers not found. Download it here...",
                   "https://github.com/alexjc/neural-enhance/releases/download/v%s/%s"%(__version__, self.get_filename()))
         print('  - Loaded file `{}` with trained model.'.format(self.get_filename()))
-        return pickle.load(bz2.open(self.get_filename(), 'rb'))
+        return pickle.load(bz2.open(self.get_filename(absolute=True), 'rb'))
 
     def load_generator(self, params):
         if len(params) == 0: return
