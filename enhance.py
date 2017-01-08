@@ -315,7 +315,9 @@ class Model(object):
     def make_block(self, name, input, units):
         self.make_layer(name+'-A', input, units, alpha=0.25)
         self.make_layer(name+'-B', self.last_layer(), units, alpha=1.0)
-        return ElemwiseSumLayer([input, self.last_layer()]) if args.generator_residual else self.last_layer()
+        if args.generator_residual:
+            self.network[name+'-R'] = ElemwiseSumLayer([input, self.last_layer()])
+        return self.last_layer()
 
     def setup_generator(self, input, config):
         for k, v in config.items(): setattr(args, k, v)
