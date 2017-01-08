@@ -271,6 +271,30 @@ class SubpixelReshuffleLayer(lasagne.layers.Layer):
         return out
 
 
+class ReflectLayer(lasagne.layers.Layer):
+    """Based on more code by ajbrock: https://gist.github.com/ajbrock/a3858c26282d9731191901b397b3ce9f
+    """
+
+    def __init__(self, incoming, pad, batch_ndim=2, **kwargs):
+        super(ReflectLayer, self).__init__(incoming, **kwargs)
+        self.pad = pad
+        self.batch_ndim = batch_ndim
+
+    def get_output_shape_for(self, input_shape):
+        output_shape = list(input_shape)
+        for k, p in enumerate(self.pad):
+            if output_shape[k + self.batch_ndim] is None: continue
+            output_shape[k + self.batch_ndim] += p * 2
+        return tuple(output_shape)
+
+    def get_output_for(self, x, **kwargs):
+        out = T.zeros(self.get_output_shape_for(x.shape))
+        p0, p1 = self.pad
+        out = T.set_subtensor(out[:,:,:p0,p1:-p1],    x[:,:,p0:0:-1,:])
+        out = T.set_subtensor(out[:,:,-p0:,p1:-p1],   x[:,:,-2:-(2+p0):-1,:])
+        out = T.set_subtensor(out[:,:,p0:-p0,p1:-p1], x)
+        out = T.set_subtensor(out[:,:,:,:p1],         out[:,:,:,(2*p1):p1:-1])
+        out = T.set_subtensor(out[:,:,:,-p1:],        out[:,:,:,-(p1+2):-(2*p1+2):-1])
         return out
 
 
@@ -305,7 +329,9 @@ class Model(object):
             extra = {'W': self.network[clone+'x'].W, 'b': self.network[clone+'x'].b}
         else:
             extra = {}
-        conv = ConvLayer(input, units, filter_size, stride=stride, pad=pad, nonlinearity=None, **extra)
+
+        padded = ReflectLayer(input, pad) if pad[0] > 0 and pad[1] > 0 else input
+        conv = ConvLayer(padded, units, filter_size, stride=stride, pad=0, nonlinearity=None, **extra)
         self.network[name+'x'] = conv
 
         if reuse and clone+'>' in self.network:
