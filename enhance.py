@@ -267,7 +267,10 @@ class SubpixelReshuffleLayer(lasagne.layers.Layer):
     def get_output_for(self, input, deterministic=False, **kwargs):
         out, r = T.zeros(self.get_output_shape_for(input.shape)), self.upscale
         for y, x in itertools.product(range(r), repeat=2):
-            out=T.inc_subtensor(out[:,:,y::r,x::r], input[:,r*y+x::r*r,:,:])
+            out = T.set_subtensor(out[:,:,y::r,x::r], input[:,r*y+x::r*r,:,:])
+        return out
+
+
         return out
 
 
