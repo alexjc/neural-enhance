@@ -183,7 +183,7 @@ class DataLoader(threading.Thread):
         except Exception as e:
             warn('Could not load `{}` as image.'.format(filename),
                  '  - Try fixing or removing the file before next run.')
-            self.files.remove(f)
+            self.files.remove(filename)
             return None
 
     def load_seed(self, filename, original, zoom):
