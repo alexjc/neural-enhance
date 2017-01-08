@@ -32,7 +32,7 @@ import collections
 
 
 # Configure all options first so we can later custom-load other libraries (Theano) based on device specified by user.
-parser = argparse.ArgumentParser(description='Generate a new image by applying style onto a content image.',
+parser = argparse.ArgumentParser(description='Enhance a low-res image into high-def using neural networks.',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 add_arg = parser.add_argument
 add_arg('files',                nargs='*', default=[])
