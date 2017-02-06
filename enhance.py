@@ -609,7 +609,7 @@ class NeuralEnhancer(object):
         map_Hb = scipy.interpolate.interp1d(Hpb, X, bounds_error=False)
         return map_Hb(inv_Ha(A).clip(0.0, 255.0))
 
-    def process(self, original):
+    def process(self, filename, original):
         # Snap the image to a shape that's compatible with the generator (2x, 4x)
         s = 2 ** max(args.generator_upscale, args.generator_downscale)
         by, bx = original.shape[0] % s, original.shape[1] % s
@@ -620,12 +620,15 @@ class NeuralEnhancer(object):
         image = np.pad(original, ((p, p), (p, p), (0, 0)), mode='reflect')
         output = np.zeros((original.shape[0] * z, original.shape[1] * z, 3), dtype=np.float32)
 
+        tileslist = list(itertools.product(range(0, original.shape[0], s), range(0, original.shape[1], s)))
+
         # Iterate through the tile coordinates and pass them through the network.
-        for y, x in itertools.product(range(0, original.shape[0], s), range(0, original.shape[1], s)):
+        for tilenumber, (y, x) in enumerate(tileslist):
+            print("\r%s (tile %d of %d)" % (filename, tilenumber, len(tileslist)), end='', flush=True)
             img = np.transpose(image[y:y+p*2+s,x:x+p*2+s,:] / 255.0 - 0.5, (2, 0, 1))[np.newaxis].astype(np.float32)
             *_, repro = self.model.predict(img)
             output[y*z:(y+s)*z,x*z:(x+s)*z,:] = np.transpose(repro[0] + 0.5, (1, 2, 0))[p*z:-p*z,p*z:-p*z,:]
-            print('.', end='', flush=True)
+        print("\r%s (tile %d of %d)" % (filename, len(tileslist), len(tileslist)), end='\n', flush=True)
         output = output.clip(0.0, 1.0) * 255.0
 
         # Match color histograms if the user specified this option.
@@ -644,9 +647,8 @@ if __name__ == "__main__":
     else:
         enhancer = NeuralEnhancer(loader=False)
         for filename in args.files:
-            print(filename, end=' ')
+            print(filename, end=' ', flush=True)
             img = scipy.ndimage.imread(filename, mode='RGB')
-            out = enhancer.process(img)
+            out = enhancer.process(filename, img)
             out.save(os.path.splitext(filename)[0]+'_ne%ix.png' % args.zoom)
-            print(flush=True)
         print(ansi.ENDC)
