@@ -170,6 +170,7 @@ class DataLoader(threading.Thread):
             if any(s < args.batch_shape for s in orig.size):
                 raise ValueError('Image is too small for training with size {}'.format(orig.size))
         except Exception as e:
+            print(e)
             warn('Could not load `{}` as image.'.format(filename),
                  '  - Try fixing or removing the file before next run.')
             self.files.remove(f)
