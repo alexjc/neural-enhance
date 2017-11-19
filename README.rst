@@ -68,12 +68,12 @@ Pre-trained models are provided in the GitHub releases.  Training your own is a 
     rm -f ne?x*.pkl.bz2
 
     # Pre-train the model using perceptual loss from paper [1] below.
-    python3.4 enhance.py --train "data/*.jpg" --model custom --scales=2 --epochs=50 \
+    python3.4 enhance.py --train "data/*.jpg" --model custom --train-scales=2 --epochs=50 \
         --perceptual-layer=conv2_2 --smoothness-weight=1e7 --adversary-weight=0.0 \
         --generator-blocks=4 --generator-filters=64
     
     # Train the model using an adversarial setup based on [4] below.
-    python3.4 enhance.py --train "data/*.jpg" --model custom --scales=2 --epochs=250 \
+    python3.4 enhance.py --train "data/*.jpg" --model custom --train-scales=2 --epochs=250 \
              --perceptual-layer=conv5_2 --smoothness-weight=2e4 --adversary-weight=1e3 \
              --generator-start=5 --discriminator-start=0 --adversarial-start=5 \
              --discriminator-size=64
