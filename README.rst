@@ -94,7 +94,7 @@ Pre-trained models are provided in the GitHub releases.  Training your own is a 
 
 The easiest way to get up-and-running is to `install Docker <https://www.docker.com/>`_. Then, you should be able to download and run the pre-built image using the ``docker`` command line tool.  Find out more about the ``alexjc/neural-enhance`` image on its `Docker Hub <https://hub.docker.com/r/alexjc/neural-enhance/>`_ page.
 
-Here's the simplest way you can call the script using ``docker``, assuming you're familiar with using ``-v`` argument to mount folders you can use this directly to specify files to enhance:
+Here's the simplest way you can call the script using ``docker``, assuming you're familiar with using ``-v`` argument to mount folders (see `documentation <https://docs.docker.com/engine/tutorials/dockervolumes/#/mount-a-host-directory-as-a-data-volume>`_) you can use this directly to specify files to enhance:
 
 .. code:: bash
 
@@ -161,7 +161,9 @@ This code uses a combination of techniques from the following papers, as well as
 
 Special thanks for their help and support in various ways:
 
+* Roelof Pieters — Provided a rack of TitanX GPUs for training model variations on OpenImages dataset.
 * Eder Santana — Discussions, encouragement, and his ideas on `sub-pixel deconvolution <https://github.com/Tetrachrome/subpixel>`_.
+* Wenzhe Shi — Practical advice and feedback on training procedures for the super-resolution GAN [4].
 * Andrew Brock — This sub-pixel layer code is based on `his project repository <https://github.com/ajbrock/Neural-Photo-Editor>`_ using Lasagne.
 * Casper Kaae Sønderby — For suggesting a more stable alternative to sigmoid + log as GAN loss functions.
 
