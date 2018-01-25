@@ -106,7 +106,7 @@ Here's the simplest way you can call the script using ``docker``, assuming you'r
 .. code:: bash
 
     # Setup the alias. Put this in your .bashrc or .zshrc file so it's available at startup.
-    alias enhance='function ne() { docker run --rm -v "$(pwd)/`dirname ${@:$#}`":/ne/input -it alexjc/neural-enhance ${@:1:$#-1} "input/`basename ${@:$#}`"; }; ne'
+    alias enhance='function ne() { docker run --rm -v "$(pwd)/`dirname ${@:$#}`":/ne/input -it alexjc/neural-enhance ${@:1:$#-1} "/ne/input/`basename ${@:$#}`"; }; ne'
 
     # Now run any of the examples above using this alias, without the `.py` extension.
     enhance --zoom=1 --model=repair images/broken.jpg
