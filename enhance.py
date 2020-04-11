@@ -454,7 +454,7 @@ class Model(object):
             error("Model file with pre-trained convolution layers not found. Download it here...",
                   "https://github.com/alexjc/neural-enhance/releases/download/v%s/%s"%(__version__, self.get_filename()))
         print('  - Loaded file `{}` with trained model.'.format(self.get_filename()))
-        return pickle.load(bz2.open(self.get_filename(), 'rb'))
+        return pickle.load(bz2.open(self.get_filename(absolute=True), 'rb'))
 
     def load_generator(self, params):
         if len(params) == 0: return
@@ -605,8 +605,8 @@ class NeuralEnhancer(object):
         (Ha, Xa), (Hb, Xb) = [np.histogram(i, bins=bins, range=rng, density=True) for i in [A, B]]
         X = np.linspace(rng[0], rng[1], bins, endpoint=True)
         Hpa, Hpb = [np.cumsum(i) * (rng[1] - rng[0]) ** 2 / float(bins) for i in [Ha, Hb]]
-        inv_Ha = scipy.interpolate.interp1d(X, Hpa, bounds_error=False)
-        map_Hb = scipy.interpolate.interp1d(Hpb, X, bounds_error=False)
+        inv_Ha = scipy.interpolate.interp1d(X, Hpa, bounds_error=False, fill_value='extrapolate')
+        map_Hb = scipy.interpolate.interp1d(Hpb, X, bounds_error=False, fill_value='extrapolate')
         return map_Hb(inv_Ha(A).clip(0.0, 255.0))
 
     def process(self, original):
