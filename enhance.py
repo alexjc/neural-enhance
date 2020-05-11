@@ -29,6 +29,7 @@ import argparse
 import itertools
 import threading
 import collections
+import imageio
 
 
 # Configure all options first so we can later custom-load other libraries (Theano) based on device specified by user.
@@ -580,7 +581,7 @@ if __name__ == "__main__":
         enhancer = NeuralEnhancer(loader=False)
         for filename in args.files:
             print(filename, end=' ')
-            img = scipy.ndimage.imread(filename, mode='RGB')
+            img = imageio.imread(filename, pilmode='RGB')
             out = enhancer.process(img)
             out.save(os.path.splitext(filename)[0]+'_ne%ix.png' % args.zoom)
             print(flush=True)
