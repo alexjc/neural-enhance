@@ -33,6 +33,7 @@ The main script is called ``enhance.py``, which you can run with Python 3.4+ onc
 The default is to use ``--device=cpu``, if you have NVIDIA card setup with CUDA already try ``--device=gpu0``. On the CPU, you can also set environment variable to ``OMP_NUM_THREADS=4``, which is most useful when running the script multiple times in parallel.
 
 1.a) Enhancing Images
+
 ---------------------
 
 A list of example command lines you can use with the pre-trained models provided in the GitHub releases:
