@@ -59,7 +59,7 @@ add_arg('--learning-period',    default=75, type=int,               help='How of
 add_arg('--learning-decay',     default=0.5, type=float,            help='How much to decay the learning rate.')
 add_arg('--generator-upscale',  default=2, type=int,                help='Steps of 2x up-sampling as post-process.')
 add_arg('--generator-downscale',default=0, type=int,                help='Steps of 2x down-sampling as preprocess.')
-add_arg('--generator-filters',  default=[64], nargs='+', type=int,  help='Number of convolution units in network.')
+add_arg('--generator-filters',  default=[128], nargs='+', type=int,  help='Number of convolution units in network.')
 add_arg('--generator-blocks',   default=4, type=int,                help='Number of residual blocks per iteration.')
 add_arg('--generator-residual', default=2, type=int,                help='Number of layers in a residual block.')
 add_arg('--perceptual-layer',   default='conv2_2', type=str,        help='Which VGG layer to use as loss component.')
@@ -106,8 +106,7 @@ print("""{}   {}Super Resolution for images and videos powered by Deep Learning!
 
 # Load the underlying deep learning libraries based on the device specified.  If you specify THEANO_FLAGS manually,
 # the code assumes you know what you are doing and they are not overriden!
-os.environ.setdefault('THEANO_FLAGS', 'floatX=float32,device={},force_device=True,allow_gc=True,'\
-                                      'print_active_device=False'.format(args.device))
+os.environ.setdefault('THEANO_FLAGS', 'floatX=float32,device={},force_device=True,allow_gc=True,print_active_device=False,int_division=floatX,exception_verbosity=high'.format(args.device))
 
 # Scientific & Imaging Libraries
 import numpy as np
@@ -115,6 +114,7 @@ import scipy.ndimage, scipy.misc, PIL.Image
 
 # Numeric Computing (GPU)
 import theano, theano.tensor as T
+from theano.compile.nanguardmode import NanGuardMode
 T.nnet.softminus = lambda x: x - T.nnet.softplus(x)
 
 # Support ansi colors in Windows too.
@@ -331,6 +331,11 @@ class Model(object):
         self.network['conv5_2'] = ConvLayer(self.network['conv5_1'], 512, 3, pad=1)
         self.network['conv5_3'] = ConvLayer(self.network['conv5_2'], 512, 3, pad=1)
         self.network['conv5_4'] = ConvLayer(self.network['conv5_3'], 512, 3, pad=1)
+        self.network['pool5']   = PoolLayer(self.network['conv5_4'], 2, mode='max')
+        self.network['conv6_1'] = ConvLayer(self.network['pool5'],   1024, 3, pad=1)
+        self.network['conv6_2'] = ConvLayer(self.network['conv6_1'], 1024, 3, pad=1)
+        self.network['conv6_3'] = ConvLayer(self.network['conv6_2'], 1024, 3, pad=1)
+        self.network['conv6_4'] = ConvLayer(self.network['conv6_3'], 1024, 3, pad=1)
 
     def setup_discriminator(self):
         c = args.discriminator_size
@@ -373,7 +378,7 @@ class Model(object):
         return os.path.join(os.path.dirname(__file__), filename) if absolute else filename
 
     def save_generator(self):
-        def cast(p): return p.get_value().astype(np.float16)
+        def cast(p): return p.get_value().astype(np.float32)
         params = {k: [cast(p) for p in l.get_params()] for (k, l) in self.list_generator_layers()}
         config = {k: getattr(args, k) for k in ['generator_blocks', 'generator_residual', 'generator_filters'] + \
                                                ['generator_upscale', 'generator_downscale']}
@@ -419,7 +424,7 @@ class Model(object):
         input_tensor, seed_tensor = T.tensor4(), T.tensor4()
         input_layers = {self.network['img']: input_tensor, self.network['seed']: seed_tensor}
         output = lasagne.layers.get_output([self.network[k] for k in ['seed','out']], input_layers, deterministic=True)
-        self.predict = theano.function([seed_tensor], output)
+        self.predict = theano.function([seed_tensor], output, mode=theano.compile.nanguardmode.NanGuardMode(nan_is_error=False,inf_is_error=True,big_is_error=False))
 
         if not args.train: return
 
@@ -446,7 +451,7 @@ class Model(object):
 
         # Combined Theano function for updating both generator and discriminator at the same time.
         updates = collections.OrderedDict(list(gen_updates.items()) + list(disc_updates.items()))
-        self.fit = theano.function([input_tensor, seed_tensor], gen_losses + [disc_out.mean(axis=(1,2,3))], updates=updates)
+        self.fit = theano.function([input_tensor, seed_tensor], gen_losses + [disc_out.mean(axis=(1,2,3))], updates=updates, mode=NanGuardMode(nan_is_error=False,inf_is_error=True,big_is_error=False ))
 
 
 
@@ -559,7 +564,7 @@ class NeuralEnhancer(object):
 
         # Iterate through the tile coordinates and pass them through the network.
         for y, x in itertools.product(range(0, original.shape[0], s), range(0, original.shape[1], s)):
-            img = np.transpose(image[y:y+p*2+s,x:x+p*2+s,:] / 255.0 - 0.5, (2, 0, 1))[np.newaxis].astype(np.float32)
+            img = np.transpose( image[y:y+p*2+s,x:x+p*2+s,:] / 255.0 - 0.5, (2, 0, 1)) [np.newaxis].astype(np.float32)
             *_, repro = self.model.predict(img)
             output[y*z:(y+s)*z,x*z:(x+s)*z,:] = np.transpose(repro[0] + 0.5, (1, 2, 0))[p*z:-p*z,p*z:-p*z,:]
             print('.', end='', flush=True)
