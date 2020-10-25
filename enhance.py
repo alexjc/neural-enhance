@@ -488,8 +488,9 @@ class NeuralEnhancer(object):
         seed_size = args.batch_shape // args.zoom
         images = np.zeros((args.batch_size, 3, args.batch_shape, args.batch_shape), dtype=np.float32)
         seeds = np.zeros((args.batch_size, 3, seed_size, seed_size), dtype=np.float32)
+
         learning_rate = self.decay_learning_rate()
-        try:
+        try:  
             average, start = None, time.time()
             for epoch in range(args.epochs):
                 total, stats = None, None
@@ -506,7 +507,8 @@ class NeuralEnhancer(object):
                     l = np.sum(losses)
                     assert not np.isnan(losses).any()
                     average = l if average is None else average * 0.95 + 0.05 * l
-                    print('↑' if l > average else '↓', end='', flush=True)
+                    print('↑ ' if l > average else '↓ ', end='', flush=False)
+                    print( "losses: " , losses , flush=True)
 
                 scald, repro = self.model.predict(seeds)
                 self.show_progress(images, scald, repro)
