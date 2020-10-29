@@ -111,7 +111,9 @@ os.environ.setdefault('THEANO_FLAGS', 'floatX=float32,device={},force_device=Tru
 
 # Scientific & Imaging Libraries
 import numpy as np
-import scipy.ndimage, scipy.misc, PIL.Image
+import scipy.ndimage, PIL.Image
+
+from scipy_misc import toimage, fromimage, imread  # replacementment for scipy.misc
 
 # Numeric Computing (GPU)
 import theano, theano.tensor as T
@@ -185,8 +187,8 @@ class DataLoader(threading.Thread):
             seed.save(buffer, format='jpeg', quality=args.train_jpeg[0]+random.randrange(-rng, +rng))
             seed = PIL.Image.open(buffer)
 
-        orig = scipy.misc.fromimage(orig).astype(np.float32)
-        seed = scipy.misc.fromimage(seed).astype(np.float32)
+        orig = fromimage(orig).astype(np.float32)
+        seed = fromimage(seed).astype(np.float32)
 
         if args.train_noise is not None:
             seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1))
@@ -467,7 +469,7 @@ class NeuralEnhancer(object):
         print('{}'.format(ansi.ENDC))
 
     def imsave(self, fn, img):
-        scipy.misc.toimage(np.transpose(img + 0.5, (1, 2, 0)).clip(0.0, 1.0) * 255.0, cmin=0, cmax=255).save(fn)
+        toimage(np.transpose(img + 0.5, (1, 2, 0)).clip(0.0, 1.0) * 255.0, cmin=0, cmax=255).save(fn)
 
     def show_progress(self, orign, scald, repro):
         os.makedirs('valid', exist_ok=True)
@@ -568,9 +570,8 @@ class NeuralEnhancer(object):
             for i in range(3):
                 output[:,:,i] = self.match_histograms(output[:,:,i], original[:,:,i])
 
-        return scipy.misc.toimage(output, cmin=0, cmax=255)
+        return toimage(output, cmin=0, cmax=255)
 
-import imageio
 
 if __name__ == "__main__":
     if args.train:
@@ -581,7 +582,7 @@ if __name__ == "__main__":
         enhancer = NeuralEnhancer(loader=False)
         for filename in args.files:
             print(filename, end=' ')
-            img = imageio.imread(filename)
+            img = imread(filename)
             out = enhancer.process(img)
             out.save(os.path.splitext(filename)[0]+'_ne%ix.png' % args.zoom)
             print(flush=True)
