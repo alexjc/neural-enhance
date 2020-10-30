@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""                          _              _                           
-  _ __   ___ _   _ _ __ __ _| |   ___ _ __ | |__   __ _ _ __   ___ ___  
- | '_ \ / _ \ | | | '__/ _` | |  / _ \ '_ \| '_ \ / _` | '_ \ / __/ _ \ 
- | | | |  __/ |_| | | | (_| | | |  __/ | | | | | | (_| | | | | (_|  __/ 
- |_| |_|\___|\__,_|_|  \__,_|_|  \___|_| |_|_| |_|\__,_|_| |_|\___\___| 
-
+"""                          _              _                           .
+  _ __   ___ _   _ _ __ __ _| |   ___ _ __ | |__   __ _ _ __   ___ ___  .
+ | '_ \ / _ \ | | | '__/ _` | |  / _ \ '_ \| '_ \ / _` | '_ \ / __/ _ \ .
+ | | | |  __/ |_| | | | (_| | | |  __/ | | | | | | (_| | | | | (_|  __/ .
+ |_| |_|\___|\__,_|_|  \__,_|_|  \___|_| |_|_| |_|\__,_|_| |_|\___\___| .
 """
 #
 # Copyright (c) 2016, Alex J. Champandard.
@@ -111,7 +110,9 @@ os.environ.setdefault('THEANO_FLAGS', 'floatX=float32,device={},force_device=Tru
 
 # Scientific & Imaging Libraries
 import numpy as np
-import scipy.ndimage, scipy.misc, PIL.Image
+import scipy.ndimage, PIL.Image
+
+from scipy_misc import toimage, fromimage, imread  # replacementment for scipy.misc
 
 # Numeric Computing (GPU)
 import theano, theano.tensor as T
@@ -185,8 +186,8 @@ class DataLoader(threading.Thread):
             seed.save(buffer, format='jpeg', quality=args.train_jpeg[0]+random.randrange(-rng, +rng))
             seed = PIL.Image.open(buffer)
 
-        orig = scipy.misc.fromimage(orig).astype(np.float32)
-        seed = scipy.misc.fromimage(seed).astype(np.float32)
+        orig = fromimage(orig).astype(np.float32)
+        seed = fromimage(seed).astype(np.float32)
 
         if args.train_noise is not None:
             seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1))
@@ -377,7 +378,7 @@ class Model(object):
         params = {k: [cast(p) for p in l.get_params()] for (k, l) in self.list_generator_layers()}
         config = {k: getattr(args, k) for k in ['generator_blocks', 'generator_residual', 'generator_filters'] + \
                                                ['generator_upscale', 'generator_downscale']}
-        
+
         pickle.dump((config, params), bz2.open(self.get_filename(absolute=True), 'wb'))
         print('  - Saved model as `{}` after training.'.format(self.get_filename()))
 
@@ -467,7 +468,7 @@ class NeuralEnhancer(object):
         print('{}'.format(ansi.ENDC))
 
     def imsave(self, fn, img):
-        scipy.misc.toimage(np.transpose(img + 0.5, (1, 2, 0)).clip(0.0, 1.0) * 255.0, cmin=0, cmax=255).save(fn)
+        toimage(np.transpose(img + 0.5, (1, 2, 0)).clip(0.0, 1.0) * 255.0, cmin=0, cmax=255).save(fn)
 
     def show_progress(self, orign, scald, repro):
         os.makedirs('valid', exist_ok=True)
@@ -568,7 +569,7 @@ class NeuralEnhancer(object):
             for i in range(3):
                 output[:,:,i] = self.match_histograms(output[:,:,i], original[:,:,i])
 
-        return scipy.misc.toimage(output, cmin=0, cmax=255)
+        return toimage(output, cmin=0, cmax=255)
 
 
 if __name__ == "__main__":
@@ -580,7 +581,7 @@ if __name__ == "__main__":
         enhancer = NeuralEnhancer(loader=False)
         for filename in args.files:
             print(filename, end=' ')
-            img = scipy.ndimage.imread(filename, mode='RGB')
+            img = imread(filename)
             out = enhancer.process(img)
             out.save(os.path.splitext(filename)[0]+'_ne%ix.png' % args.zoom)
             print(flush=True)
