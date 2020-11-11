@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""                          _              _                           
-  _ __   ___ _   _ _ __ __ _| |   ___ _ __ | |__   __ _ _ __   ___ ___  
- | '_ \ / _ \ | | | '__/ _` | |  / _ \ '_ \| '_ \ / _` | '_ \ / __/ _ \ 
- | | | |  __/ |_| | | | (_| | | |  __/ | | | | | | (_| | | | | (_|  __/ 
- |_| |_|\___|\__,_|_|  \__,_|_|  \___|_| |_|_| |_|\__,_|_| |_|\___\___| 
-
+# """                          _              _
+#   _ __   ___ _   _ _ __ __ _| |   ___ _ __ | |__   __ _ _ __   ___ ___
+#  | '_ \ / _ \ | | | '__/ _` | |  / _ \ '_ \| '_ \ / _` | '_ \ / __/ _ \
+#  | | | |  __/ |_| | | | (_| | | |  __/ | | | | | | (_| | | | | (_|  __/
+#  |_| |_|\___|\__,_|_|  \__,_|_|  \___|_| |_|_| |_|\__,_|_| |_|\___\___|
+#
+# """
+"""
+Neural Enhance
+ - Aurangzeb <aureagle@gmail.com>
 """
 #
 # Copyright (c) 2016, Alex J. Champandard.
@@ -30,46 +34,52 @@ import itertools
 import threading
 import collections
 
+start_time = time.time()
+compile_time = start_time
+
+# Scientific & Imaging Libraries
+import numpy as np
+import scipy.ndimage, scipy.misc, PIL.Image
 
 # Configure all options first so we can later custom-load other libraries (Theano) based on device specified by user.
 parser = argparse.ArgumentParser(description='Generate a new image by applying style onto a content image.',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 add_arg = parser.add_argument
 add_arg('files',                nargs='*', default=[])
-add_arg('--zoom',               default=2, type=int,                help='Resolution increase factor for inference.')
-add_arg('--rendering-tile',     default=80, type=int,               help='Size of tiles used for rendering images.')
-add_arg('--rendering-overlap',  default=24, type=int,               help='Number of pixels padding around each tile.')
+add_arg('--zoom',               default=2, type=np.int32,                help='Resolution increase factor for inference.')
+add_arg('--rendering-tile',     default=80, type=np.int32,               help='Size of tiles used for rendering images.')
+add_arg('--rendering-overlap',  default=24, type=np.int32,               help='Number of pixels padding around each tile.')
 add_arg('--rendering-histogram',default=False, action='store_true', help='Match color histogram of output to input.')
 add_arg('--type',               default='photo', type=str,          help='Name of the neural network to load/save.')
 add_arg('--model',              default='default', type=str,        help='Specific trained version of the model.')
 add_arg('--train',              default=False, type=str,            help='File pattern to load for training.')
-add_arg('--train-scales',       default=0, type=int,                help='Randomly resize images this many times.')
-add_arg('--train-blur',         default=None, type=int,             help='Sigma value for gaussian blur preprocess.')
+add_arg('--train-scales',       default=0, type=np.int32,                help='Randomly resize images this many times.')
+add_arg('--train-blur',         default=None, type=np.int32,             help='Sigma value for gaussian blur preprocess.')
 add_arg('--train-noise',        default=None, type=float,           help='Radius for preprocessing gaussian blur.')
 add_arg('--train-jpeg',         default=[], nargs='+', type=int,    help='JPEG compression level & range in preproc.')
-add_arg('--epochs',             default=10, type=int,               help='Total number of iterations in training.')
-add_arg('--epoch-size',         default=72, type=int,               help='Number of batches trained in an epoch.')
-add_arg('--save-every',         default=10, type=int,               help='Save generator after every training epoch.')
-add_arg('--batch-shape',        default=192, type=int,              help='Resolution of images in training batch.')
-add_arg('--batch-size',         default=15, type=int,               help='Number of images per training batch.')
-add_arg('--buffer-size',        default=1500, type=int,             help='Total image fragments kept in cache.')
-add_arg('--buffer-fraction',    default=5, type=int,                help='Fragments cached for each image loaded.')
+add_arg('--epochs',             default=10, type=np.int32,               help='Total number of iterations in training.')
+add_arg('--epoch-size',         default=72, type=np.int32,               help='Number of batches trained in an epoch.')
+add_arg('--save-every',         default=10, type=np.int32,               help='Save generator after every training epoch.')
+add_arg('--batch-shape',        default=192, type=np.int32,              help='Resolution of images in training batch.')
+add_arg('--batch-size',         default=15, type=np.int32,               help='Number of images per training batch.')
+add_arg('--buffer-size',        default=1500, type=np.int32,             help='Total image fragments kept in cache.')
+add_arg('--buffer-fraction',    default=5, type=np.int32,                help='Fragments cached for each image loaded.')
 add_arg('--learning-rate',      default=1E-4, type=float,           help='Parameter for the ADAM optimizer.')
-add_arg('--learning-period',    default=75, type=int,               help='How often to decay the learning rate.')
+add_arg('--learning-period',    default=75, type=np.int32,               help='How often to decay the learning rate.')
 add_arg('--learning-decay',     default=0.5, type=float,            help='How much to decay the learning rate.')
-add_arg('--generator-upscale',  default=2, type=int,                help='Steps of 2x up-sampling as post-process.')
-add_arg('--generator-downscale',default=0, type=int,                help='Steps of 2x down-sampling as preprocess.')
-add_arg('--generator-filters',  default=[128], nargs='+', type=int,  help='Number of convolution units in network.')
-add_arg('--generator-blocks',   default=4, type=int,                help='Number of residual blocks per iteration.')
-add_arg('--generator-residual', default=2, type=int,                help='Number of layers in a residual block.')
+add_arg('--generator-upscale',  default=2, type=np.int32,                help='Steps of 2x up-sampling as post-process.')
+add_arg('--generator-downscale',default=0, type=np.int32,                help='Steps of 2x down-sampling as preprocess.')
+add_arg('--generator-filters',  default=[128], nargs='+', type=np.int32,  help='Number of convolution units in network.')
+add_arg('--generator-blocks',   default=4, type=np.int32,                help='Number of residual blocks per iteration.')
+add_arg('--generator-residual', default=2, type=np.int32,                help='Number of layers in a residual block.')
 add_arg('--perceptual-layer',   default='conv2_2', type=str,        help='Which VGG layer to use as loss component.')
 add_arg('--perceptual-weight',  default=1e0, type=float,            help='Weight for VGG-layer perceptual loss.')
-add_arg('--discriminator-size', default=32, type=int,               help='Multiplier for number of filters in D.')
+add_arg('--discriminator-size', default=32, type=np.int32,               help='Multiplier for number of filters in D.')
 add_arg('--smoothness-weight',  default=2e5, type=float,            help='Weight of the total-variation loss.')
 add_arg('--adversary-weight',   default=5e2, type=float,            help='Weight of adversarial loss compoment.')
-add_arg('--generator-start',    default=0, type=int,                help='Epoch count to start training generator.')
-add_arg('--discriminator-start',default=1, type=int,                help='Epoch count to update the discriminator.')
-add_arg('--adversarial-start',  default=2, type=int,                help='Epoch for generator to use discriminator.')
+add_arg('--generator-start',    default=0, type=np.int32,                help='Epoch count to start training generator.')
+add_arg('--discriminator-start',default=1, type=np.int32,                help='Epoch count to update the discriminator.')
+add_arg('--adversarial-start',  default=2, type=np.int32,                help='Epoch for generator to use discriminator.')
 add_arg('--device',             default='cpu', type=str,            help='Name of the CPU/GPU to use, for Theano.')
 args = parser.parse_args()
 
@@ -106,11 +116,7 @@ print("""{}   {}Super Resolution for images and videos powered by Deep Learning!
 
 # Load the underlying deep learning libraries based on the device specified.  If you specify THEANO_FLAGS manually,
 # the code assumes you know what you are doing and they are not overriden!
-os.environ.setdefault('THEANO_FLAGS', 'floatX=float32,device={},force_device=True,allow_gc=True,print_active_device=False,int_division=floatX,exception_verbosity=high'.format(args.device))
-
-# Scientific & Imaging Libraries
-import numpy as np
-import scipy.ndimage, scipy.misc, PIL.Image
+os.environ.setdefault('THEANO_FLAGS', 'blas.ldflags=-lopenblas -L/home/rolustech/lib -lgfortran,floatX=float32,device={},force_device=True,allow_gc=True,print_active_device=False,int_division=floatX'.format(args.device))
 
 # Numeric Computing (GPU)
 import theano, theano.tensor as T
@@ -164,7 +170,7 @@ class DataLoader(threading.Thread):
         filename = os.path.join(self.cwd, f)
         try:
             orig = PIL.Image.open(filename).convert('RGB')
-            scale = 2 ** random.randint(0, args.train_scales)
+            scale = 2 ** random.randint(0, args.train_scales )
             if scale > 1 and all(s//scale >= args.batch_shape for s in orig.size):
                 orig = orig.resize((orig.size[0]//scale, orig.size[1]//scale), resample=PIL.Image.LANCZOS)
             if any(s < args.batch_shape for s in orig.size):
@@ -177,7 +183,7 @@ class DataLoader(threading.Thread):
 
         seed = orig
         if args.train_blur is not None:
-            seed = seed.filter(PIL.ImageFilter.GaussianBlur(radius=random.randint(0, args.train_blur*2)))
+            seed = seed.filter(PIL.ImageFilter.GaussianBlur(radius=random.randint(0, args.train_blur*2 )))
         if args.zoom > 1:
             seed = seed.resize((orig.size[0]//args.zoom, orig.size[1]//args.zoom), resample=PIL.Image.LANCZOS)
         if len(args.train_jpeg) > 0:
@@ -192,8 +198,8 @@ class DataLoader(threading.Thread):
             seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1))
 
         for _ in range(seed.shape[0] * seed.shape[1] // (args.buffer_fraction * self.seed_shape ** 2)):
-            h = random.randint(0, seed.shape[0] - self.seed_shape)
-            w = random.randint(0, seed.shape[1] - self.seed_shape)
+            h = random.randint(0, seed.shape[0] - self.seed_shape )
+            w = random.randint(0, seed.shape[1] - self.seed_shape )
             seed_chunk = seed[h:h+self.seed_shape, w:w+self.seed_shape]
             h, w = h * args.zoom, w * args.zoom
             orig_chunk = orig[h:h+self.orig_shape, w:w+self.orig_shape]
@@ -239,8 +245,10 @@ class SubpixelReshuffleLayer(lasagne.layers.Layer):
         return (input_shape[0], self.channels, up(input_shape[2]), up(input_shape[3]))
 
     def get_output_for(self, input, deterministic=False, **kwargs):
-        out, r = T.zeros(self.get_output_shape_for(input.shape)), self.upscale
-        for y, x in itertools.product(range(r), repeat=2):
+        out, r = T.zeros(self.get_output_shape_for(input.shape)), np.int32( self.upscale )
+        for y, x in itertools.product(range(r), repeat=2 ):
+            y = np.int32( y )
+            x = np.int32( x )
             out=T.inc_subtensor(out[:,:,y::r,x::r], input[:,r*y+x::r*r,:,:])
         return out
 
@@ -421,16 +429,23 @@ class Model(object):
 
     def compile(self):
         # Helper function for rendering test images during training, or standalone inference mode.
+        print("entering compile...", end='', flush=True )
         input_tensor, seed_tensor = T.tensor4(), T.tensor4()
         input_layers = {self.network['img']: input_tensor, self.network['seed']: seed_tensor}
         output = lasagne.layers.get_output([self.network[k] for k in ['seed','out']], input_layers, deterministic=True)
-        self.predict = theano.function([seed_tensor], output, mode=theano.compile.nanguardmode.NanGuardMode(nan_is_error=False,inf_is_error=True,big_is_error=False))
+        self.predict = theano.function([seed_tensor], output )
+        print("done", flush='True')
+        global compile_time
+        compile_time = time.time()
+
 
         if not args.train: return
+        print("entering compile for training...", flush=True )
 
         output_layers = [self.network['out'], self.network[args.perceptual_layer], self.network['disc']]
         gen_out, percept_out, disc_out = lasagne.layers.get_output(output_layers, input_layers, deterministic=False)
 
+        print("compiling generator...", flush=True )
         # Generator loss function, parameters and updates.
         self.gen_lr = theano.shared(np.array(0.0, dtype=theano.config.floatX))
         self.adversary_weight = theano.shared(np.array(0.0, dtype=theano.config.floatX))
@@ -441,6 +456,7 @@ class Model(object):
         print('  - {} tensors learned for generator.'.format(len(gen_params)))
         gen_updates = lasagne.updates.adam(sum(gen_losses, 0.0), gen_params, learning_rate=self.gen_lr)
 
+        print("compiling discriminator...", flush=True)
         # Discriminator loss function, parameters and updates.
         self.disc_lr = theano.shared(np.array(0.0, dtype=theano.config.floatX))
         disc_losses = [self.loss_discriminator(disc_out)]
@@ -449,9 +465,13 @@ class Model(object):
         grads = [g.clip(-5.0, +5.0) for g in T.grad(sum(disc_losses, 0.0), disc_params)]
         disc_updates = lasagne.updates.adam(grads, disc_params, learning_rate=self.disc_lr)
 
+        print("compiling theano function...", flush=True )
         # Combined Theano function for updating both generator and discriminator at the same time.
         updates = collections.OrderedDict(list(gen_updates.items()) + list(disc_updates.items()))
-        self.fit = theano.function([input_tensor, seed_tensor], gen_losses + [disc_out.mean(axis=(1,2,3))], updates=updates, mode=NanGuardMode(nan_is_error=False,inf_is_error=True,big_is_error=False ))
+        self.fit = theano.function([input_tensor, seed_tensor], gen_losses + [disc_out.mean(axis=(1, 2, 3))], updates=updates )
+
+        print("compiling done!", flush=True )
+        compile_time = time.time()
 
 
 
@@ -592,3 +612,9 @@ if __name__ == "__main__":
             out.save(os.path.splitext(filename)[0]+'_ne%ix.png' % args.zoom)
             print(flush=True)
         print(ansi.ENDC)
+
+
+end_time = time.time()
+
+print('Total time taken in enhancing: {} seconds' . format( end_time - compile_time ))
+print('Total time taken inc compile: {} seconds' . format( end_time - start_time ))
