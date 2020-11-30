@@ -339,11 +339,7 @@ class Model(object):
         self.network['conv5_2'] = ConvLayer(self.network['conv5_1'], 512, 3, pad=1)
         self.network['conv5_3'] = ConvLayer(self.network['conv5_2'], 512, 3, pad=1)
         self.network['conv5_4'] = ConvLayer(self.network['conv5_3'], 512, 3, pad=1)
-        self.network['pool5']   = PoolLayer(self.network['conv5_4'], 2, mode='max')
-        self.network['conv6_1'] = ConvLayer(self.network['pool5'],   1024, 3, pad=1)
-        self.network['conv6_2'] = ConvLayer(self.network['conv6_1'], 1024, 3, pad=1)
-        self.network['conv6_3'] = ConvLayer(self.network['conv6_2'], 1024, 3, pad=1)
-        self.network['conv6_4'] = ConvLayer(self.network['conv6_3'], 1024, 3, pad=1)
+        # self.network['pool5']   = PoolLayer(self.network('conv5_4'), 2, mode='max')
 
     def setup_discriminator(self):
         c = args.discriminator_size
