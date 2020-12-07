@@ -197,7 +197,8 @@ class DataLoader(threading.Thread):
         if args.train_noise is not None:
             seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1))
 
-        for _ in range(seed.shape[0] * seed.shape[1] // (args.buffer_fraction * self.seed_shape ** 2)):
+        num_fractions = math.floor( seed.shape[0] / self.seed_shape ) * math.floor( seed.shape[1] / self.seed_shape )
+        for _ in range(seed.shape[0] * seed.shape[1] // ( num_fractions * self.seed_shape ** 2)):
             h = random.randint(0, seed.shape[0] - self.seed_shape )
             w = random.randint(0, seed.shape[1] - self.seed_shape )
             seed_chunk = seed[h:h+self.seed_shape, w:w+self.seed_shape]
