@@ -63,7 +63,7 @@ add_arg('--save-every',         default=10, type=np.int32,               help='S
 add_arg('--batch-shape',        default=192, type=np.int32,              help='Resolution of images in training batch.')
 add_arg('--batch-size',         default=15, type=np.int32,               help='Number of images per training batch.')
 add_arg('--buffer-size',        default=1500, type=np.int32,             help='Total image fragments kept in cache.')
-add_arg('--buffer-fraction',    default=5, type=np.int32,                help='Fragments cached for each image loaded.')
+add_arg('--buffer-fraction',    default=0, type=np.int32,                help='Fragments cached for each image loaded.')
 add_arg('--learning-rate',      default=1E-4, type=float,           help='Parameter for the ADAM optimizer.')
 add_arg('--learning-period',    default=75, type=np.int32,               help='How often to decay the learning rate.')
 add_arg('--learning-decay',     default=0.5, type=float,            help='How much to decay the learning rate.')
@@ -197,7 +197,9 @@ class DataLoader(threading.Thread):
         if args.train_noise is not None:
             seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1))
 
-        num_fractions = math.floor( seed.shape[0] / self.seed_shape ) * math.floor( seed.shape[1] / self.seed_shape )
+        # if buffer_fraction is 0 num_fractions will be automatically calculated
+        num_fractions = args.buffer_fraction
+        if num_fractions == 0: num_fractions = math.floor( seed.shape[0] / self.seed_shape ) * math.floor( seed.shape[1] / self.seed_shape )
         for _ in range(seed.shape[0] * seed.shape[1] // ( num_fractions * self.seed_shape ** 2)):
             h = random.randint(0, seed.shape[0] - self.seed_shape )
             w = random.randint(0, seed.shape[1] - self.seed_shape )
@@ -504,7 +506,9 @@ class NeuralEnhancer(object):
         while True:
             yield l_r
             t_cur += 1
-            if t_cur % args.learning_period == 0: l_r *= args.learning_decay
+            if t_cur % args.learning_period == 0:
+                # l_r *= args.learning_decay
+                l_r -= l_r * args.learning_decay # 0.1 decay means decay by 10% on every period
 
     def train(self):
         seed_size = args.batch_shape // args.zoom
