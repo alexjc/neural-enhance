@@ -20,11 +20,13 @@ import io
 import os
 import sys
 import bz2
+import PIL
 import glob
 import math
 import time
 import pickle
 import random
+import imageio
 import argparse
 import itertools
 import threading
@@ -568,7 +570,7 @@ class NeuralEnhancer(object):
             for i in range(3):
                 output[:,:,i] = self.match_histograms(output[:,:,i], original[:,:,i])
 
-        return scipy.misc.toimage(output, cmin=0, cmax=255)
+        return PIL.Image.fromarray((output).astype('uint8'), mode='RGB')
 
 
 if __name__ == "__main__":
@@ -580,7 +582,7 @@ if __name__ == "__main__":
         enhancer = NeuralEnhancer(loader=False)
         for filename in args.files:
             print(filename, end=' ')
-            img = scipy.ndimage.imread(filename, mode='RGB')
+            img = imageio.imread(filename, as_gray=False, pilmode="RGB")
             out = enhancer.process(img)
             out.save(os.path.splitext(filename)[0]+'_ne%ix.png' % args.zoom)
             print(flush=True)
