@@ -9,6 +9,7 @@
 """
 Neural Enhance
  - Aurangzeb <aureagle@gmail.com>
+ - Alex J. Champandard
 """
 #
 # Copyright (c) 2016, Alex J. Champandard.
