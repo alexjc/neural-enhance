@@ -193,8 +193,8 @@ class DataLoader(threading.Thread):
             seed.save(buffer, format='jpeg', quality=args.train_jpeg[0]+random.randrange(-rng, +rng))
             seed = PIL.Image.open(buffer)
 
-        orig = scipy.misc.fromimage(orig).astype(np.float32)
-        seed = scipy.misc.fromimage(seed).astype(np.float32)
+        orig = np.asarray( orig ).astype( np.float32 )
+        seed = np.asarray( seed ).astype( np.float32 )
 
         if args.train_noise is not None:
             seed += scipy.random.normal(scale=args.train_noise, size=(seed.shape[0], seed.shape[1], 1))
