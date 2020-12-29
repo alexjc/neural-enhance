@@ -202,9 +202,15 @@ class DataLoader(threading.Thread):
         # if buffer_fraction is 0 num_fractions will be automatically calculated
         num_fractions = args.buffer_fraction
         if num_fractions == 0: num_fractions = math.floor( seed.shape[0] / self.seed_shape ) * math.floor( seed.shape[1] / self.seed_shape )
-        for _ in range(seed.shape[0] * seed.shape[1] // ( num_fractions * self.seed_shape ** 2)):
+        # old code to calculate number of buffer fractions, it messes up if we give buffer fractions more than
+        # the consecutive tiles but the tiling is done from random points so number of fractions doesn't matter
+        # so this 'for' statement is no longer required
+        # for _ in range(seed.shape[0] * seed.shape[1] // ( num_fractions * self.seed_shape ** 2)):
+        for _ in range( num_fractions ):
             h = random.randint(0, seed.shape[0] - self.seed_shape )
+            # h = math.floor( random.randint( 0, math.floor( seed.shape[0] / self.seed_shape ) - 1 ) * self.seed_shape )
             w = random.randint(0, seed.shape[1] - self.seed_shape )
+            # w = math.floor( random.randint( 0, math.floor( seed.shape[1] / self.seed_shape ) - 1 ) * self.seed_shape )
             seed_chunk = seed[h:h+self.seed_shape, w:w+self.seed_shape]
             h, w = h * args.zoom, w * args.zoom
             orig_chunk = orig[h:h+self.orig_shape, w:w+self.orig_shape]
@@ -535,6 +541,7 @@ class NeuralEnhancer(object):
                     total = total + losses if total is not None else losses
                     l = np.sum(losses)
                     assert not np.isnan(losses).any()
+                    assert not np.isinf(losses).any()
                     average = l if average is None else average * 0.95 + 0.05 * l
                     print('↑ ' if l > average else '↓ ', end='', flush=False)
                     print( "losses: " , losses , flush=True)
